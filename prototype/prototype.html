@@ -1,0 +1,2112 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OneShot · 交互原型（模拟）</title>
+<style>
+/* OneShot 交互原型。应用导轨 → 功能栏 → 工作区。
+ * UI 图标采用 Lucide；完整图标许可证内嵌于本文件。
+ */
+/* ---- design tokens ---- */
+:root {
+  /* 字体：只用本机 SF / 苹方 / SF Mono，不加载网络字体 */
+  --font-ui-system: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", system-ui, sans-serif;
+  --font-ui-pingfang: "PingFang SC", -apple-system, BlinkMacSystemFont, "Hiragino Sans GB", system-ui, sans-serif;
+  --font-mono-sf: ui-monospace, "SF Mono", Menlo, monospace;
+  --font-mono-menlo: Menlo, ui-monospace, "SF Mono", monospace;
+  --font-ui: var(--font-ui-system);
+  --font-mono: var(--font-mono-sf);
+  /* 字级：13px 为界面正文；设置只提供放大档，不提供缩小档 */
+  --text-xs: 11px; --text-sm: 12px; --text-md: 13px; --text-lg: 15px; --text-xl: 20px;
+  --lh-tight: 1.25; --lh-ui: 1.45; --lh-prose: 1.65;
+  --weight-regular: 400; --weight-strong: 600; --tracking-title: -.01em;
+  --space-2xs: 2px; --space-xs: 4px; --space-sm: 8px; --space-md: 12px; --space-lg: 16px; --space-xl: 24px;
+  --radius-sm: 4px; --radius-md: 6px; --radius-lg: 10px;
+  /* 密度：只改控件高度与行距，不改字号；图标 16 / 20 / 24 三档 */
+  --ctl-h: 28px; --row-py: 6px; --nav-h: 30px;
+  --icon-sm: 16px; --icon-md: 20px; --icon-lg: 24px;
+  /* 三栏：应用导轨固定窄宽；功能栏随中文标签（约 11–14 字）；工作区占剩余 */
+  --rail-w: 52px; --rail-hit: 36px; --brand-rail: 32px; --fn-w: 14em; --fn-min: 11em;
+  --ease-out: cubic-bezier(.2, .8, .2, 1); --ease-in: cubic-bezier(.4, 0, 1, 1); --ease-in-out: cubic-bezier(.65, 0, .35, 1);
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 280ms;
+
+  --color-desk: oklch(93% .006 110);
+  --color-paper: oklch(97.5% .006 110);
+  --color-paper-2: oklch(95.5% .007 110);
+  --color-paper-3: oklch(92% .008 110);
+  --color-rule: oklch(88% .008 110);
+  --color-ink: oklch(24% .012 250);
+  --color-ink-2: oklch(40% .012 250);
+  --color-ink-3: oklch(50% .01 250);
+  --color-accent: oklch(86% .19 125);
+  --color-on-accent: oklch(24% .012 250);
+  --color-accent-deep: oklch(50% .14 128);
+  --color-focus: oklch(50% .14 128);
+  --color-sel-muted: oklch(90.5% .01 110);
+  --color-danger: oklch(52% .17 28);
+  --color-mark: oklch(86% .19 125 / .45);
+  /* 品牌字形（无底板 sm 派生）：浅色环与点都用墨色（lime 点在纸白上对比不足）；深色环纸白、点 lime */
+  --color-brand-ring: var(--color-ink); --color-brand-dot: var(--color-ink);
+  --rule-hair: 1px solid var(--color-rule);
+  --color-scrim: oklch(24% .012 250 / .28);
+  --shadow-pop: 0 8px 24px oklch(24% .012 250 / .18);
+  /* 模拟图片内容自身的颜色，不随主题变化 */
+  --color-img-paper: oklch(97% .006 110); --color-img-rule: oklch(86% .008 110);
+  --color-img-ink: oklch(24% .012 250); --color-img-grey: oklch(62% .01 250);
+  --color-img-lime: oklch(86% .19 125); --color-img-olive: oklch(50% .14 128);
+}
+[data-theme="dark"] {
+  --color-desk: oklch(13% .008 250);
+  --color-paper: oklch(17% .008 250);
+  --color-paper-2: oklch(20% .009 250);
+  --color-paper-3: oklch(25% .01 250);
+  --color-rule: oklch(30% .01 250);
+  --color-ink: oklch(93% .006 110);
+  --color-ink-2: oklch(80% .008 110);
+  --color-ink-3: oklch(68% .008 110);
+  --color-accent: oklch(84% .18 125);
+  --color-on-accent: oklch(20% .012 250);
+  --color-accent-deep: oklch(78% .16 126);
+  --color-focus: oklch(88% .19 125);
+  --color-sel-muted: oklch(28% .01 250);
+  --color-danger: oklch(70% .15 28);
+  --color-mark: oklch(84% .18 125 / .3);
+  --color-brand-dot: var(--color-accent);
+  --color-scrim: oklch(5% .01 250 / .55);
+  --shadow-pop: 0 8px 24px oklch(5% .01 250 / .5);
+}
+@media (prefers-reduced-motion: reduce) {
+  :root { --dur-fast: 100ms; --dur-base: 150ms; --dur-slow: 150ms; }
+}
+[data-motion="reduced"] { --dur-fast: 100ms; --dur-base: 150ms; --dur-slow: 150ms; }
+[data-motion="off"] { --dur-fast: 0ms; --dur-base: 0ms; --dur-slow: 0ms; }
+/* 设置 › 外观：字体与密度（即时生效） */
+[data-font="pingfang"] { --font-ui: var(--font-ui-pingfang); }
+[data-mono="menlo"] { --font-mono: var(--font-mono-menlo); }
+[data-density="comfortable"] { --ctl-h: 32px; --row-py: 8px; --nav-h: 34px; }
+[data-text="lg"] { --text-xs: 12px; --text-sm: 13px; --text-md: 14px; --text-lg: 16px; --text-xl: 21px; }
+
+/* ---- base ---- */
+html, body { margin: 0; overflow-x: clip; }
+html { color-scheme: light; }
+html[data-theme="dark"] { color-scheme: dark; }
+* { box-sizing: border-box; }
+body { min-height: 100dvh; background: var(--color-desk); color: var(--color-ink); font: var(--weight-regular) var(--text-md)/var(--lh-ui) var(--font-ui);
+  display: flex; flex-direction: column; align-items: center; gap: var(--space-md); padding: var(--space-lg); -webkit-font-smoothing: antialiased; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--color-focus); outline-offset: 2px; }
+/* Lucide：16px 用于按钮与行内，20px 用于空态/状态，24px 只用于大面积空态；线宽随尺寸收窄，保持视觉一致 */
+.ic { width: var(--icon-sm); height: var(--icon-sm); flex: none; display: block; }
+.ic.md { width: var(--icon-md); height: var(--icon-md); }
+.ic.lg { width: var(--icon-lg); height: var(--icon-lg); }
+.ic.fill { fill: currentColor; }
+mark { background: var(--color-mark); color: inherit; border-radius: 2px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+kbd { font: var(--text-xs)/1 var(--font-mono); color: var(--color-ink-3); padding: var(--space-2xs) var(--space-xs); border: var(--rule-hair); border-radius: var(--radius-sm); }
+
+/* ---- 工作区 ---- */
+/* 三栏：应用（窄导轨）→ 功能 → 工作区；三栏是同一张纸的三种纸色，只用细线分隔 */
+.app { width: min(1100px, 100%); height: min(740px, calc(100dvh - 88px)); min-height: 360px; background: var(--color-paper);
+  border: var(--rule-hair); border-radius: var(--radius-lg); overflow: hidden; position: relative;
+  display: grid; grid-template-columns: var(--rail-w) minmax(var(--fn-min), var(--fn-w)) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+.route { display: contents; }
+.rail { grid-column: 1; grid-row: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: var(--space-xs); padding: var(--space-md) 0 var(--space-sm);
+  background: var(--color-paper-3); border-right: var(--rule-hair); min-height: 0; }
+/* 品牌原稿 ≥32px 直接使用（design.md：32px 以上用原稿） */
+.brand { display: block; margin-bottom: var(--space-sm); }
+.brand svg { display: block; width: var(--brand-rail); height: var(--brand-rail); }
+/* 唤起：圆点从环心落到缺口处，一次、无回弹（user units：环心 256,256 → 点 343.68,168.32） */
+.brand.is-wake circle { animation: brand-wake var(--dur-base) var(--ease-out); }
+@keyframes brand-wake { from { opacity: 0; transform: translate(-87.68px, 87.68px); } }
+/* 输出反馈字形：assets/brand/oneshot-a-glyph-sm.svg 的内联副本（环两端各收 5°，16px 下端点与点间距约 2.6px） */
+.fx { width: var(--icon-sm); height: var(--icon-sm); flex: none; visibility: hidden; }
+.fx[data-fx="wait"], .fx[data-fx="ok"], .fx[data-fx="err"] { visibility: visible; }
+.fx-ring { fill: none; stroke: var(--color-brand-ring); stroke-width: 56; stroke-linecap: round; transform-origin: 256px 256px; }
+.fx-dot { fill: var(--color-brand-dot); transform-origin: 343.68px 168.32px; }
+/* 等待：点离位变淡；full 下环转 ≤3 圈（每圈结束缺口都回到点上），超时/取消/完成由 JS 换态即停 */
+.fx[data-fx="wait"] .fx-dot { opacity: .4; }
+.fx[data-fx="wait"] .fx-ring { animation: spin 1.2s linear 3; }
+/* 成功：点回到全不透明并轻缩放一次后停住；失败：点改 danger 色，不抖动 */
+.fx[data-fx="ok"] .fx-dot { animation: fx-settle var(--dur-base) var(--ease-out); }
+.fx[data-fx="err"] .fx-dot { fill: var(--color-danger); }
+@keyframes fx-settle { from { opacity: .4; transform: scale(.7); } }
+@keyframes fx-fade { from { opacity: .4; } }
+.rail-btn { position: relative; display: grid; place-items: center; width: var(--rail-hit); height: var(--rail-hit); border: 0; border-radius: var(--radius-md);
+  background: none; color: var(--color-ink-2); cursor: default; transition: background-color var(--dur-fast) var(--ease-out); }
+.rail-btn:hover { background: var(--color-paper-2); color: var(--color-ink); }
+.rail-btn:active { transform: translateY(1px); }
+.rail-btn:disabled, .rail-btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; background: none; transform: none; }
+/* 选中：左侧 lime 细条 + 纸色变浅，不只靠颜色 */
+.rail-btn[aria-current="page"] { background: var(--color-paper); color: var(--color-ink); }
+.rail-btn[aria-current="page"]::before, .nav-btn[aria-current="page"]::before { content: ""; position: absolute; left: 0; top: 6px; bottom: 6px; width: 3px;
+  border-radius: 0 2px 2px 0; background: var(--color-accent); box-shadow: 0 0 0 .5px var(--color-accent-deep); }
+.rail-btn[aria-current="page"]::before { left: calc(-1 * (var(--rail-w) - var(--rail-hit)) / 2); }
+.rail-btn[data-off]::after { content: ""; position: absolute; right: 5px; bottom: 5px; width: 6px; height: 6px; border-radius: 50%; background: var(--color-danger); }
+.fn { grid-column: 2; grid-row: 1 / -1; display: flex; flex-direction: column; gap: var(--space-xs); min-width: 0; min-height: 0; padding: var(--space-md) var(--space-sm) var(--space-sm);
+  background: var(--color-paper-2); border-right: var(--rule-hair); }
+.fn-title { display: flex; align-items: center; gap: var(--space-sm); flex-wrap: wrap; margin: 0 var(--space-sm) var(--space-xs); font-size: var(--text-lg);
+  font-weight: var(--weight-strong); letter-spacing: var(--tracking-title); line-height: var(--lh-tight); }
+.fn-title .off { font-size: var(--text-sm); font-weight: var(--weight-regular); color: var(--color-danger); }
+.fn-list { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2xs); }
+.fn-foot { margin-top: auto; display: grid; gap: var(--space-xs); justify-items: start; padding: var(--space-sm) var(--space-sm) 0; border-top: var(--rule-hair); }
+.work { grid-column: 3; grid-row: 1 / -1; min-width: 0; min-height: 0; display: grid; background: var(--color-paper); }
+.clip-work { grid-template-rows: auto auto minmax(0, 1fr) auto; }
+.set-work { grid-template-rows: minmax(0, 1fr) auto; }
+.tag { font-size: var(--text-xs); color: var(--color-ink-3); border: var(--rule-hair); border-radius: var(--radius-sm); padding: 0 var(--space-xs); white-space: nowrap; }
+.spacer { flex: 1; }
+.rec { display: flex; align-items: center; gap: var(--space-xs); font-size: var(--text-sm); color: var(--color-ink-2); white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--color-accent); box-shadow: 0 0 0 1px var(--color-accent-deep); }
+
+.btn { position: relative; display: inline-flex; align-items: center; gap: var(--space-xs); height: var(--ctl-h); padding: 0 var(--space-sm); border: var(--rule-hair);
+  border-radius: var(--radius-md); background: var(--color-paper); white-space: nowrap; cursor: default;
+  transition: background-color var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out); }
+.btn:hover { background: var(--color-paper-3); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: .45; cursor: not-allowed; transform: none; background: var(--color-paper); }
+.btn[data-state="loading"] { cursor: progress; opacity: .7; }
+.btn[data-state="error"] { border-color: var(--color-danger); color: var(--color-danger); }
+.btn.quiet { border-color: transparent; background: transparent; }
+.btn.quiet:hover { background: var(--color-paper-3); }
+.btn.icon { padding: 0 var(--space-xs); min-width: var(--ctl-h); justify-content: center; }
+.btn[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+/* 触屏：视觉尺寸不变，命中区扩到 ≥ 44px */
+@media (pointer: coarse) { .btn.icon::before { content: ""; position: absolute; inset: -8px; } }
+.btn.primary { background: var(--color-ink); color: var(--color-paper); border-color: var(--color-ink); }
+.btn.primary:hover { background: var(--color-ink-2); }
+.btn.primary kbd { color: inherit; border-color: currentColor; opacity: .7; }
+.btn.primary:disabled { background: var(--color-ink); }
+
+.query { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-bottom: var(--rule-hair); min-width: 0; }
+.search { flex: 1 1 240px; min-width: 0; display: flex; align-items: center; gap: var(--space-sm); height: calc(var(--ctl-h) + 2px); padding: 0 var(--space-sm);
+  background: var(--color-paper-2); border: var(--rule-hair); border-radius: var(--radius-md); color: var(--color-ink-3); }
+.search:focus-within { outline: 2px solid var(--color-focus); outline-offset: 1px; }
+.search input { flex: 1; min-width: 0; border: 0; background: none; font: inherit; color: var(--color-ink); outline: none; }
+.search input::placeholder { color: var(--color-ink-3); }
+.filters { display: flex; gap: var(--space-2xs); overflow-x: auto; scrollbar-width: none; flex: none; max-width: 100%; }
+.chip { height: calc(var(--ctl-h) - 2px); padding: 0 var(--space-sm); border: 1px solid transparent; border-radius: var(--radius-md); background: none;
+  display: inline-flex; align-items: center; gap: var(--space-xs); color: var(--color-ink-2); white-space: nowrap; cursor: default; }
+.chip:hover { background: var(--color-paper-3); }
+.chip[aria-pressed="true"] { background: var(--color-paper-3); border-color: var(--color-rule); color: var(--color-ink); font-weight: var(--weight-strong); }
+
+.split { display: grid; grid-template-columns: minmax(0, 4fr) minmax(0, 6fr); min-height: 0; }
+.list { overflow-y: auto; border-right: var(--rule-hair); padding: var(--space-xs); outline-offset: -2px; overscroll-behavior: contain; }
+.cap { font-size: var(--text-xs); color: var(--color-ink-3); padding: var(--space-xs) var(--space-sm); font-variant-numeric: tabular-nums; }
+.row { display: grid; grid-template-columns: 24px minmax(0, 1fr) auto; align-items: center; gap: var(--space-sm); padding: var(--row-py) var(--space-sm); border-radius: var(--radius-md); cursor: default; }
+.row:hover { background: var(--color-paper-2); }
+.row[aria-selected="true"] { background: var(--color-sel-muted); }
+.app.is-nav .row[aria-selected="true"] { background: var(--color-accent); color: var(--color-on-accent); }
+.app.is-nav .row[aria-selected="true"] .row-meta { color: var(--color-on-accent); }
+.row-ic { width: 24px; height: 24px; display: grid; place-items: center; color: var(--color-ink-2); }
+.app.is-nav .row[aria-selected="true"] .row-ic { color: var(--color-on-accent); }
+.thumb { width: 24px; height: 18px; display: block; border-radius: 2px; overflow: hidden; }
+.thumb svg { width: 100%; height: 100%; display: block; }
+.row-main { min-width: 0; display: grid; }
+.row-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row-meta { font-size: var(--text-xs); color: var(--color-ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.preview { display: grid; grid-template-rows: auto auto minmax(0, 1fr); min-width: 0; min-height: 0; }
+.pv-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md) 0; min-width: 0; }
+.pv-head .back { display: none; }
+.pv-type { display: inline-flex; align-items: center; gap: var(--space-xs); font-size: var(--text-xs); color: var(--color-ink-2); white-space: nowrap; }
+.pv-title { flex: 1; min-width: 0; margin: 0; font-size: var(--text-lg); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.btn[aria-pressed="true"] .ic { fill: currentColor; }
+.pv-meta { padding: var(--space-2xs) var(--space-md) var(--space-sm); font-size: var(--text-xs); color: var(--color-ink-3); border-bottom: var(--rule-hair); font-variant-numeric: tabular-nums; }
+.pv-body { overflow: auto; padding: var(--space-lg) var(--space-lg) var(--space-xl); outline-offset: -2px; overscroll-behavior: contain; }
+.prose { max-width: 68ch; }
+.prose p, .prose li { margin: 0 0 var(--space-md); line-height: var(--lh-prose); }
+.prose h4 { font-size: var(--text-lg); margin: 0 0 var(--space-sm); }
+.code { margin: 0; font: var(--text-sm)/1.6 var(--font-mono); background: var(--color-paper-2); border: var(--rule-hair); border-radius: var(--radius-md);
+  padding: var(--space-sm) 0; overflow-x: auto; counter-reset: ln; tab-size: 4; }
+.code .ln { display: block; white-space: pre; padding-right: var(--space-md); }
+.code .ln::before { counter-increment: ln; content: counter(ln); display: inline-block; width: 4ch; margin-right: var(--space-md); text-align: right; color: var(--color-ink-3); user-select: none; }
+.domain { font-size: var(--text-xl); font-weight: 600; margin: 0 0 var(--space-xs); overflow-wrap: anywhere; }
+.url { font: var(--text-sm)/1.5 var(--font-mono); color: var(--color-ink-2); overflow-wrap: anywhere; margin: 0 0 var(--space-lg); }
+.note { font-size: var(--text-sm); color: var(--color-ink-3); margin: var(--space-md) 0 0; }
+.figure { margin: 0; }
+.figure svg { width: 100%; max-width: 640px; height: auto; display: block; border: var(--rule-hair); border-radius: var(--radius-md); }
+.im-bg { fill: var(--color-img-paper); } .im-line { fill: var(--color-img-rule); } .im-ink { fill: var(--color-img-ink); }
+.im-grey { fill: var(--color-img-grey); } .im-lime { fill: var(--color-img-lime); } .im-olive { fill: var(--color-img-olive); }
+.im-stroke { fill: none; stroke: var(--color-img-ink); }
+.empty { display: grid; justify-items: start; gap: var(--space-sm); max-width: 40ch; color: var(--color-ink-2); }
+.empty .ic { color: var(--color-ink-3); }
+.empty p { margin: 0; }
+.empty .acts { display: flex; gap: var(--space-sm); flex-wrap: wrap; }
+
+.actions { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-sm) var(--space-md); border-top: var(--rule-hair); background: var(--color-paper-2); min-width: 0; }
+.seg { display: inline-flex; padding: var(--space-2xs); border: var(--rule-hair); border-radius: var(--radius-md); background: var(--color-paper); flex: none; }
+.seg button { height: calc(var(--ctl-h) - 6px); padding: 0 var(--space-sm); border: 0; border-radius: var(--radius-sm); background: none; color: var(--color-ink-2); white-space: nowrap; cursor: default; }
+.seg button[aria-checked="true"] { background: var(--color-paper-3); color: var(--color-ink); font-weight: 600; }
+.result { flex: 1; min-width: 0; font-size: var(--text-sm); line-height: 1.35; color: var(--color-ink-2); }
+.result.err { color: var(--color-danger); }
+[hidden] { display: none !important; }
+
+.review { width: min(1100px, 100%); font-size: var(--text-sm); color: var(--color-ink-2); }
+.review summary { display: inline-flex; align-items: center; gap: var(--space-xs); cursor: default; list-style: none; padding: var(--space-xs) var(--space-sm); border-radius: var(--radius-md); }
+.review summary::-webkit-details-marker { display: none; }
+.review summary .ic { transition: transform var(--dur-fast) var(--ease-out); }
+.review[open] summary .ic { transform: rotate(90deg); }
+
+/* ---- 多选、菜单、弹窗、提示 ---- */
+.hosts { display: contents; }
+.multibar { grid-row: 2; display: flex; align-items: center; gap: var(--space-xs); padding: var(--space-xs) var(--space-md); border-bottom: var(--rule-hair); background: var(--color-paper-2); font-size: var(--text-sm); min-width: 0; }
+.query { grid-row: 1; } .split { grid-row: 3; } .actions { grid-row: 4; }
+.pick { width: 16px; height: 16px; display: grid; place-items: center; border: 1px solid var(--color-ink-3); border-radius: var(--radius-sm); background: var(--color-paper); color: var(--color-paper); }
+.row[aria-checked="true"] .pick { background: var(--color-ink); border-color: var(--color-ink); }
+.btn.danger { background: var(--color-danger); border-color: var(--color-danger); color: var(--color-paper); }
+.btn.danger:hover { background: var(--color-danger); opacity: .88; }
+/* 加载图标：150ms 内不出现（避免一闪），之后有界旋转 ≤3 圈 */
+.spin { animation: spin-in 1ms 150ms backwards, spin 1.2s linear 150ms 3; }
+@keyframes spin-in { from { opacity: 0; } }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes pop { from { opacity: 0; transform: translateY(4px); } }
+@keyframes fade { from { opacity: 0; } }
+
+.menu { position: fixed; z-index: 20; min-width: 210px; padding: var(--space-xs); background: var(--color-paper); color: var(--color-ink);
+  border: var(--rule-hair); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); animation: pop var(--dur-base) var(--ease-out); }
+.menu [role="menuitem"] { display: flex; align-items: center; gap: var(--space-sm); width: 100%; height: var(--ctl-h); padding: 0 var(--space-sm); border: 0;
+  border-radius: var(--radius-sm); background: none; text-align: left; white-space: nowrap; cursor: default; }
+.menu [role="menuitem"]:hover { background: var(--color-paper-3); }
+.menu [role="menuitem"]:focus-visible { background: var(--color-paper-3); outline-offset: -2px; }
+.menu [role="menuitem"]:active { transform: translateY(1px); }
+.menu [role="menuitem"]:disabled { opacity: .45; cursor: not-allowed; background: none; }
+.menu [role="menuitem"] kbd { margin-left: auto; }
+.menu .warn { color: var(--color-danger); }
+.menu hr { border: 0; border-top: var(--rule-hair); margin: var(--space-xs) 0; }
+
+dialog { position: fixed; inset: 0; margin: auto; height: fit-content; max-height: min(86dvh, 680px); width: min(420px, calc(100vw - 2 * var(--space-lg)));
+  padding: 0; border: var(--rule-hair); border-radius: var(--radius-lg); background: var(--color-paper); color: var(--color-ink); box-shadow: var(--shadow-pop); overflow: auto; }
+dialog[open] { animation: pop var(--dur-slow) var(--ease-out); }
+dialog::backdrop { background: var(--color-scrim); }
+dialog.wide { width: min(560px, calc(100vw - 2 * var(--space-lg))); }
+dialog.zoom { width: min(920px, calc(100vw - 2 * var(--space-lg))); }
+.zoom .pv-body { max-height: 68dvh; }
+.dlg-head { display: flex; align-items: center; gap: var(--space-sm); padding: var(--space-md) var(--space-lg); border-bottom: var(--rule-hair); }
+.dlg-head h2 { flex: 1; min-width: 0; margin: 0; font-size: var(--text-lg); overflow-wrap: anywhere; }
+.dlg-body { display: grid; gap: var(--space-lg); padding: var(--space-md) var(--space-lg); }
+.dlg-body p { margin: 0; }
+.dlg-foot { position: sticky; bottom: 0; display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-lg); border-top: var(--rule-hair); background: var(--color-paper-2); }
+.dlg-list { margin: 0; padding-left: var(--space-lg); color: var(--color-ink-2); }
+.dlg-list li { overflow-wrap: anywhere; }
+.keys { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: var(--space-xs) var(--space-md); margin: 0; }
+.keys dt { font: var(--text-sm)/1.6 var(--font-mono); } .keys dd { margin: 0; color: var(--color-ink-2); }
+
+.opt { display: inline-flex; align-items: center; gap: var(--space-xs); white-space: nowrap; }
+.opt:has(input:disabled) { color: var(--color-ink-3); cursor: not-allowed; }
+input[type="radio"], input[type="checkbox"] { margin: 0; accent-color: var(--color-accent-deep); }
+input[type="radio"]:disabled, input[type="checkbox"]:disabled { cursor: not-allowed; }
+select { height: var(--ctl-h); padding: 0 var(--space-xs); font: inherit; color: var(--color-ink); background: var(--color-paper); border: var(--rule-hair); border-radius: var(--radius-md); }
+select:hover { background: var(--color-paper-2); }
+select:disabled { opacity: .55; cursor: not-allowed; }
+.val { font-weight: var(--weight-strong); font-variant-numeric: tabular-nums; }
+.help { min-height: 1lh; margin: 0; font-size: var(--text-sm); color: var(--color-ink-3); }
+.help:empty { min-height: 0; }
+.help.err { color: var(--color-danger); } .help.ok { color: var(--color-ink); }
+
+/* ---- 设置（OneShot 应用层）：第二栏搜索 + 分类，第三栏选项（全部模拟） ---- */
+.set-find .search { background: var(--color-paper); }
+.set-nav { flex: 1; min-height: 0; overflow-y: auto; }
+.set-nav ul { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--space-2xs); }
+.nav-group { margin: var(--space-md) var(--space-sm) var(--space-xs); font-size: var(--text-sm); font-weight: var(--weight-strong); color: var(--color-ink-3); }
+.nav-btn { position: relative; display: flex; align-items: center; gap: var(--space-sm); width: 100%; height: var(--nav-h); padding: 0 var(--space-sm); border: 0;
+  border-radius: var(--radius-md); background: none; color: var(--color-ink-2); text-align: left; white-space: nowrap; cursor: default;
+  transition: background-color var(--dur-fast) var(--ease-out); }
+.nav-btn:hover { background: var(--color-paper-3); color: var(--color-ink); }
+.nav-btn:active { transform: translateY(1px); }
+.nav-btn[aria-current="page"] { background: var(--color-sel-muted); color: var(--color-ink); font-weight: var(--weight-strong); }
+.nav-btn:focus-visible { outline-offset: -2px; }
+.nav-btn:disabled { opacity: .45; cursor: not-allowed; background: none; transform: none; }
+.nav-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.nav-badge { font-size: var(--text-xs); font-weight: var(--weight-regular); color: var(--color-ink-3); }
+.nav-badge.warn { color: var(--color-danger); }
+.set-main { min-width: 0; min-height: 0; overflow-y: auto; padding: var(--space-lg) var(--space-xl) var(--space-xl); container-type: inline-size; overscroll-behavior: contain; }
+.panel { display: grid; gap: var(--space-xl); max-width: 620px; }
+fieldset.panel { margin: 0; padding: 0; border: 0; min-width: 0; }
+.panel-head { display: grid; gap: var(--space-2xs); }
+.panel-head h3 { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-strong); line-height: var(--lh-tight); letter-spacing: var(--tracking-title); }
+.panel-head p { margin: 0; font-size: var(--text-sm); color: var(--color-ink-3); }
+.group { display: grid; gap: var(--space-xs); margin: 0; padding: 0; border: 0; min-width: 0; }
+.group > legend { padding: 0; margin-bottom: var(--space-xs); font-size: var(--text-sm); font-weight: var(--weight-strong); color: var(--color-ink-2); }
+.group-box { border: var(--rule-hair); border-radius: var(--radius-md); background: var(--color-paper); }
+.field { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: var(--space-xs) var(--space-lg);
+  min-height: calc(var(--ctl-h) + 2 * var(--space-sm)); padding: var(--space-sm) var(--space-md); border-radius: var(--radius-md); }
+.field + .field { border-top: var(--rule-hair); border-radius: 0; }
+.field-text { display: grid; gap: var(--space-2xs); min-width: 0; }
+.field-label { line-height: var(--lh-tight); }
+.field-desc { font-size: var(--text-sm); color: var(--color-ink-3); }
+.field-ctl { display: flex; align-items: center; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-xs) var(--space-md); }
+.field > .help { grid-column: 1 / -1; }
+.field.is-hit { animation: hit 1.6s var(--ease-out); }
+@keyframes hit { from { background: var(--color-mark); } }
+fieldset:disabled .field-label { color: var(--color-ink-3); }
+.state { display: inline-flex; align-items: center; gap: var(--space-xs); font-weight: var(--weight-strong); white-space: nowrap; }
+.state.err { color: var(--color-danger); }
+.note-box { margin: 0; padding: var(--space-sm) var(--space-md); border: 1px dashed var(--color-rule); border-radius: var(--radius-md); font-size: var(--text-sm); color: var(--color-ink-2); }
+.switch { appearance: none; -webkit-appearance: none; position: relative; flex: none; width: 30px; height: 18px; margin: 0; border: 1px solid var(--color-rule);
+  border-radius: 9px; background: var(--color-paper-3); cursor: default; transition: background-color var(--dur-fast) var(--ease-out); }
+.switch::after { content: ""; position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--color-paper);
+  box-shadow: 0 0 0 1px var(--color-rule); transition: transform var(--dur-fast) var(--ease-out); }
+.switch:hover { border-color: var(--color-ink-3); }
+.switch:checked { background: var(--color-accent-deep); border-color: var(--color-accent-deep); }
+.switch:checked::after { transform: translateX(12px); }
+.switch:active::after { width: 16px; }
+.switch:disabled { opacity: .45; cursor: not-allowed; }
+.hk-vals { display: flex; gap: var(--space-md); }
+.hk-val { display: grid; gap: var(--space-2xs); min-width: 56px; font-size: var(--text-xs); color: var(--color-ink-3); }
+.hk-val kbd { justify-self: start; font-size: var(--text-sm); color: var(--color-ink); }
+.hk-val.draft kbd { border-style: dashed; }
+.hits { display: grid; gap: var(--space-2xs); }
+.hit-row { display: grid; grid-template-columns: var(--icon-sm) minmax(0, 1fr); gap: var(--space-2xs) var(--space-sm); width: 100%; padding: var(--space-sm);
+  border: 0; border-radius: var(--radius-md); background: none; text-align: left; cursor: default; }
+.hit-row:hover { background: var(--color-paper-3); }
+.hit-row:focus-visible { background: var(--color-paper-3); outline-offset: -2px; }
+.hit-row:active { transform: translateY(1px); }
+.hit-row .ic { margin-top: 1px; color: var(--color-ink-3); }
+.hit-path { display: block; font-size: var(--text-xs); color: var(--color-ink-3); }
+.hit-label { display: block; font-weight: var(--weight-strong); }
+.hit-desc { display: block; font-size: var(--text-sm); color: var(--color-ink-2); }
+.set-foot { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: var(--space-sm); padding: var(--space-sm) var(--space-md);
+  border-top: var(--rule-hair); background: var(--color-paper-2); min-width: 0; }
+.set-status { flex: 1; min-width: 0; margin: 0; font-size: var(--text-sm); color: var(--color-ink-2); }
+.set-status.err { color: var(--color-danger); }
+.font-sample { font-size: var(--text-sm); color: var(--color-ink-2); }
+.font-sample code { font-family: var(--font-mono); }
+@container (max-width: 460px) {
+  .field { grid-template-columns: minmax(0, 1fr); }
+  .field-ctl { justify-content: flex-start; }
+}
+
+/* ---- tooltip：悬停 800ms、聚焦立即、Esc 关闭；可悬停在提示上 ---- */
+.tip { position: fixed; inset: auto; z-index: 40; margin: 0; max-width: 260px; padding: var(--space-xs) var(--space-sm); border: 0; border-radius: var(--radius-sm);
+  background: var(--color-ink); color: var(--color-paper); font-size: var(--text-xs); line-height: var(--lh-tight); box-shadow: var(--shadow-pop);
+  animation: fade var(--dur-base) var(--ease-out); overflow: visible; }
+.tip kbd { color: inherit; border-color: currentColor; opacity: .8; }
+
+.toast { position: absolute; right: var(--space-md); bottom: 56px; z-index: 15; display: flex; align-items: center; gap: var(--space-sm);
+  max-width: calc(100% - 2 * var(--space-md)); padding: var(--space-xs) var(--space-xs) var(--space-xs) var(--space-md);
+  background: var(--color-ink); color: var(--color-paper); border-radius: var(--radius-md); box-shadow: var(--shadow-pop); font-size: var(--text-sm);
+  animation: pop var(--dur-slow) var(--ease-out); }
+.toast .msg { min-width: 0; }
+.toast .btn { height: 24px; background: transparent; color: inherit; border-color: currentColor; }
+.toast .btn.quiet { border-color: transparent; }
+.toast .btn:hover { background: var(--color-ink-2); }
+.toast :focus-visible { outline-color: currentColor; }
+
+.reopen { width: min(1100px, 100%); display: flex; align-items: center; flex-wrap: wrap; gap: var(--space-md); padding: var(--space-lg);
+  background: var(--color-paper); border: 1px dashed var(--color-ink-3); border-radius: var(--radius-lg); }
+
+.scn { display: grid; gap: var(--space-sm); padding: var(--space-sm); }
+.scn-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm); }
+.scn-row > b { width: 40px; flex: none; color: var(--color-ink); }
+.scn .btn { height: 26px; }
+.scn label:not(.opt) { display: inline-flex; align-items: center; gap: var(--space-xs); white-space: nowrap; }
+.scn-status { min-height: 1lh; margin: 0; color: var(--color-ink); }
+
+/* 减少：空间位移改淡变，加载不旋转（静态图标 + 文字）；与下方系统媒体查询逐条对应，JS motionLevel() 同一规则 */
+[data-motion="reduced"] .menu, [data-motion="reduced"] dialog[open], [data-motion="reduced"] .toast, [data-motion="reduced"] .brand.is-wake circle { animation-name: fade; }
+[data-motion="reduced"] .btn:active, [data-motion="reduced"] .menu [role="menuitem"]:active, [data-motion="reduced"] .nav-btn:active,
+[data-motion="reduced"] .rail-btn:active, [data-motion="reduced"] .hit-row:active { transform: none; }
+[data-motion="reduced"] .spin { animation: spin-in 1ms 150ms backwards; }
+[data-motion="reduced"] .fx .fx-ring { animation: none; }
+[data-motion="reduced"] .fx[data-fx="ok"] .fx-dot { animation-name: fx-fade; }
+/* 动效关闭：不播放任何动画与过渡，状态只靠静态样式与文字（定位高亮改为静态底色，由 JS 1.6s 后移除） */
+[data-motion="off"] *, [data-motion="off"] *::before, [data-motion="off"] *::after { animation: none !important; transition: none !important; }
+[data-motion="off"] .field.is-hit { background: var(--color-mark); }
+@media (prefers-reduced-motion: reduce) {
+  .menu, dialog[open], .toast, .brand.is-wake circle { animation-name: fade; }
+  .btn:active, .menu [role="menuitem"]:active, .nav-btn:active, .rail-btn:active, .hit-row:active { transform: none; }
+  .spin { animation: spin-in 1ms 150ms backwards; }
+  .fx[data-fx] .fx-ring { animation: none; }
+  .fx[data-fx="ok"] .fx-dot { animation-name: fx-fade; }
+}
+
+@media (max-width: 800px) {
+  body { padding: 0; gap: 0; }
+  .app { height: 100dvh; border: 0; border-radius: 0; }
+  .query { flex-wrap: wrap; }
+  .search { flex-basis: 100%; }
+  .split { grid-template-columns: minmax(0, 1fr); }
+  .list { border-right: 0; }
+  .app[data-view="list"] .preview, .app[data-view="preview"] .list { display: none; }
+  .pv-head .back { display: inline-flex; }
+  .actions { flex-wrap: wrap; }
+  .result { order: -1; flex-basis: 100%; }
+  .review { padding: var(--space-sm) var(--space-md) var(--space-lg); }
+  .toast { left: var(--space-sm); right: var(--space-sm); bottom: 104px; }
+  .reopen { border-radius: 0; }
+}
+/* 窄窗口：第一栏保留；功能栏收成工作区顶部的同语义控件（同一组按钮、同样的 aria-current），选中条改到底边 */
+@media (max-width: 600px) {
+  .app { grid-template-columns: var(--rail-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .fn { grid-column: 2; grid-row: 1; flex-direction: row; flex-wrap: wrap; align-items: center; gap: var(--space-xs) var(--space-sm);
+    padding: var(--space-sm); border-right: 0; border-bottom: var(--rule-hair); }
+  .work { grid-column: 2; grid-row: 2; }
+  .fn-title { margin: 0 var(--space-xs); font-size: var(--text-md); }
+  .fn-list, .set-nav ul { display: flex; gap: var(--space-2xs); }
+  .fn-foot { margin: 0 0 0 auto; padding: 0; border-top: 0; }
+  .set-find { flex: 1 1 100%; }
+  .set-nav { flex: 1 1 100%; display: flex; align-items: center; gap: var(--space-xs); overflow-x: auto; scrollbar-width: thin; }
+  .nav-group { margin: 0 var(--space-xs); white-space: nowrap; }
+  .nav-btn { width: auto; flex: none; }
+  .nav-text { flex: none; }
+  .nav-btn[aria-current="page"]::before { left: var(--space-sm); right: var(--space-sm); top: auto; bottom: 0; width: auto; height: 3px; border-radius: 2px 2px 0 0; }
+  .set-main { padding: var(--space-md); }
+}
+@media (max-width: 440px) {
+  .tag, .act-label kbd { display: none; }
+  .actions { gap: var(--space-xs); }
+  .actions .spacer { display: none; }
+}
+</style>
+<!-- BEGIN EMBEDDED ICON LICENSE
+Source: https://github.com/lucide-icons/lucide
+Retrieved 2026-10-04. Official repository main branch snapshot. UI icons are Lucide (ISC; Feather-derived icons MIT). The brand mark is not Lucide: it is the user-supplied OneShot A (open ring + separate dot).
+
+ISC License
+
+Copyright (c) 2026 Lucide Icons and Contributors
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
+MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
+ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+—-
+
+The following Lucide icons are derived from the Feather project:
+
+airplay, alert-circle, alert-octagon, alert-triangle, aperture, arrow-down-circle, arrow-down-left, arrow-down-right, arrow-down, arrow-left-circle, arrow-left, arrow-right-circle, arrow-right, arrow-up-circle, arrow-up-left, arrow-up-right, arrow-up, at-sign, calendar, cast, check, chevron-down, chevron-left, chevron-right, chevron-up, chevrons-down, chevrons-left, chevrons-right, chevrons-up, circle, clipboard, clock, code, columns, command, compass, corner-down-left, corner-down-right, corner-left-down, corner-left-up, corner-right-down, corner-right-up, corner-up-left, corner-up-right, crosshair, database, divide-circle, divide-square, dollar-sign, download, external-link, feather, frown, hash, headphones, help-circle, info, italic, key, layout, life-buoy, link-2, link, loader, lock, log-in, log-out, maximize, meh, minimize, minimize-2, minus-circle, minus-square, minus, monitor, moon, more-horizontal, more-vertical, move, music, navigation-2, navigation, octagon, pause-circle, percent, plus-circle, plus-square, plus, power, radio, rss, search, server, share, shopping-bag, sidebar, smartphone, smile, square, table-2, tablet, target, terminal, trash-2, trash, triangle, tv, type, upload, x-circle, x-octagon, x-square, x, zoom-in, zoom-out
+
+The MIT License (MIT) (for the icons listed above)
+
+Copyright (c) 2013-present Cole Bemis
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+END EMBEDDED ICON LICENSE -->
+</head>
+<body>
+<div class="app" id="app" data-route="clipboard" data-view="list">
+  <!-- 第一栏：OneShot 应用层。只列真实模块（现在只有剪贴板）；全局设置在底部 -->
+  <nav class="rail" aria-label="OneShot 模块">
+    <!-- OneShot 品牌标志：开口圆环与独立圆点。 -->
+    <span class="brand" role="img" aria-label="OneShot" data-tip="OneShot"><svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect x="16" y="16" width="480" height="480" rx="108" fill="#CDEB18"/><path d="M256 132 A124 124 0 1 0 380 256" fill="none" stroke="#22231F" stroke-width="56" stroke-linecap="round"/><circle cx="343.68" cy="168.32" r="28" fill="#22231F"/></svg></span>
+    <button class="rail-btn" id="railClip" type="button" data-route="clipboard" aria-current="page" aria-label="剪贴板" data-tip="剪贴板"><span data-i="clipboard" data-size="md"></span></button>
+    <span class="spacer"></span>
+    <button class="rail-btn" id="themeBtn" type="button"></button>
+    <button class="rail-btn" id="settingsBtn" type="button" data-route="settings" aria-label="OneShot 设置" aria-keyshortcuts="Meta+Comma" data-tip="OneShot 设置 <kbd>⌘,</kbd>"><span data-i="settings" data-size="md"></span></button>
+  </nav>
+
+  <!-- 剪贴板：第二栏功能（历史 / 收藏），第三栏工作区 -->
+  <div class="route" id="clipRoute">
+  <nav class="fn" aria-labelledby="clipTitle">
+    <h2 class="fn-title" id="clipTitle">剪贴板<span class="off" id="moduleOff" hidden>已停用</span></h2>
+    <ul class="fn-list" id="fnNav">
+      <li><button class="nav-btn" type="button" data-fn="history" aria-current="page"><span data-i="history"></span><span class="nav-text">历史</span><span class="nav-badge" id="cntHistory"></span></button></li>
+      <li><button class="nav-btn" type="button" data-fn="fav"><span data-i="star"></span><span class="nav-text">收藏</span><span class="nav-badge" id="cntFav"></span></button></li>
+    </ul>
+    <div class="fn-foot">
+      <span class="rec" id="recState"><i class="dot" aria-hidden="true"></i><span>记录中</span></span>
+      <span class="tag">原型 · 全部为模拟</span>
+    </div>
+  </nav>
+
+  <section class="work clip-work" aria-labelledby="clipTitle">
+  <div class="query">
+    <label class="search"><span data-i="search"></span><span class="sr" id="qLbl">搜索历史</span>
+      <input id="q" type="search" placeholder="搜索文字、代码、链接…" autocomplete="off" spellcheck="false" aria-controls="list">
+      <button class="btn quiet icon" id="clearQ" type="button" aria-label="清除搜索" data-tip="清除搜索 <kbd>Esc</kbd>" hidden><span data-i="x"></span></button>
+      <kbd>⌘F</kbd>
+    </label>
+    <div class="filters" role="group" aria-label="类型筛选" id="filters">
+      <button class="chip" type="button" data-filter="all" aria-pressed="true">全部</button>
+      <button class="chip" type="button" data-filter="text" aria-pressed="false"><span data-i="type"></span>文字</button>
+      <button class="chip" type="button" data-filter="code" aria-pressed="false"><span data-i="code"></span>代码</button>
+      <button class="chip" type="button" data-filter="link" aria-pressed="false"><span data-i="link"></span>链接</button>
+      <button class="chip" type="button" data-filter="image" aria-pressed="false"><span data-i="image"></span>图片</button>
+    </div>
+  </div>
+
+  <div class="multibar" id="multibar" role="toolbar" aria-label="多选删除" hidden>
+    <span id="mbCount" aria-live="polite"></span><span class="spacer"></span>
+    <button class="btn" id="mbAll" type="button">全选当前结果</button>
+    <button class="btn" id="mbDel" type="button"></button>
+    <button class="btn quiet" id="mbDone" type="button">完成 <kbd>Esc</kbd></button>
+  </div>
+
+  <main class="split">
+    <section class="list" id="list" role="listbox" tabindex="0" aria-label="剪贴板历史"></section>
+    <section class="preview" id="preview" aria-label="预览">
+      <header class="pv-head">
+        <button class="btn quiet icon back" id="backBtn" type="button" aria-label="返回列表" data-tip="返回列表 <kbd>Esc</kbd>"><span data-i="arrow-left"></span></button>
+        <span class="pv-type" id="pvType"></span>
+        <h2 class="pv-title" id="pvTitle"></h2>
+        <button class="btn quiet" id="favBtn" type="button" aria-pressed="false" title="收藏 ⌘D"></button>
+      </header>
+      <div class="pv-meta" id="pvMeta"></div>
+      <div class="pv-body" id="pvBody" tabindex="0" aria-label="预览内容"></div>
+    </section>
+  </main>
+
+  <footer class="actions">
+    <div class="seg" role="radiogroup" aria-label="输出格式" id="fmtSeg">
+      <button type="button" role="radio" data-fmt="plain" aria-checked="true">纯文本</button>
+      <button type="button" role="radio" data-fmt="rich" aria-checked="false">保留格式</button>
+    </div>
+    <svg class="fx" id="fx" data-fx="idle" viewBox="104 104 304 304" aria-hidden="true"><path class="fx-ring" d="M245.19 132.47 A124 124 0 1 0 379.53 266.81"/><circle class="fx-dot" cx="343.68" cy="168.32" r="28"/></svg>
+    <div class="result" id="result" role="status" aria-live="polite"></div>
+    <button class="btn" id="resultAct" type="button" hidden></button>
+    <span class="spacer"></span>
+    <button class="btn quiet icon" id="moreBtn" type="button" aria-label="更多操作" aria-haspopup="menu" aria-controls="menu" aria-expanded="false" data-tip="更多：删除、多选、清空、撤销"><span data-i="ellipsis"></span></button>
+    <button class="btn act-label" id="copyBtn" type="button"><span data-i="copy"></span>复制 <kbd>⌘↵</kbd></button>
+    <button class="btn primary act-label" id="pasteBtn" type="button"><span data-i="corner-down-left"></span>粘贴 <kbd>↵</kbd></button>
+  </footer>
+  </section>
+  </div>
+
+  <!-- 设置：OneShot 应用层全局状态。第二栏搜索 + 分类，第三栏当前分类的选项；不是弹窗 -->
+  <div class="route" id="setRoot" hidden>
+  <nav class="fn" aria-labelledby="setTitle">
+    <h2 class="fn-title" id="setTitle">设置<span class="tag">建议值 · 全部为模拟</span></h2>
+    <div class="set-find">
+      <label class="search"><span data-i="search"></span><span class="sr">搜索设置</span>
+        <input id="setQ" type="search" placeholder="搜索设置" autocomplete="off" spellcheck="false" aria-controls="p-hits" aria-describedby="setQHint">
+        <button class="btn quiet icon" id="setQClear" type="button" aria-label="清除设置搜索" data-tip="清除搜索 <kbd>Esc</kbd>" hidden><span data-i="x"></span></button>
+      </label>
+      <span class="sr" id="setQHint">中英文名称、说明和同义词都可搜索；↓ 进入结果，↵ 打开第一个结果</span>
+    </div>
+    <div class="set-nav" role="group" aria-label="设置分类" id="setNav">
+          <p class="nav-group">OneShot</p>
+          <ul>
+            <li><button class="nav-btn" type="button" data-sec="general" aria-label="通用" data-tip="通用"><span data-i="settings"></span><span class="nav-text">通用</span></button></li>
+            <li><button class="nav-btn" type="button" data-sec="appearance" aria-label="外观与动效" data-tip="外观与动效"><span data-i="sun"></span><span class="nav-text">外观与动效</span></button></li>
+            <li><button class="nav-btn" type="button" data-sec="shortcuts" aria-label="全局快捷键" data-tip="全局快捷键"><span data-i="command"></span><span class="nav-text">全局快捷键</span><span class="nav-badge warn" id="hkBadge" hidden></span></button></li>
+            <li><button class="nav-btn" type="button" data-sec="privacy" aria-label="隐私与数据" data-tip="隐私与数据"><span data-i="shield"></span><span class="nav-text">隐私与数据</span></button></li>
+          </ul>
+          <p class="nav-group">模块</p>
+          <ul>
+            <li><button class="nav-btn" type="button" data-sec="clipboard" aria-label="模块 · 剪贴板" data-tip="模块 · 剪贴板"><span data-i="clipboard"></span><span class="nav-text">剪贴板</span><span class="nav-badge" id="clipBadge"></span></button></li>
+          </ul>
+    </div>
+  </nav>
+
+  <section class="work set-work" aria-labelledby="setTitle">
+        <div class="set-main" id="setMain">
+
+          <section class="panel" id="p-general" data-sec="general" aria-labelledby="h-general" hidden>
+            <header class="panel-head"><h3 id="h-general">通用</h3><p>OneShot 整体的常驻与窗口行为。均为会话内模拟，不改动 macOS 登录项或菜单栏。</p></header>
+            <fieldset class="group"><legend>启动与常驻</legend><div class="group-box">
+              <div class="field" id="f-menubar" data-s="menu bar menubar status item tray 菜单栏 状态栏 托盘 图标 常驻">
+                <label class="field-text" for="menubarSw"><span class="field-label">在菜单栏显示 OneShot</span><span class="field-desc">从菜单栏打开模块和设置。</span></label>
+                <div class="field-ctl"><input class="switch" type="checkbox" role="switch" id="menubarSw"></div></div>
+              <div class="field" id="f-login" data-s="launch at login startup boot 开机 登录 自启 自动启动">
+                <label class="field-text" for="loginSw"><span class="field-label">登录时启动</span><span class="field-desc">登录 macOS 后在后台启动（模拟，不修改登录项）。</span></label>
+                <div class="field-ctl"><input class="switch" type="checkbox" role="switch" id="loginSw"></div></div>
+              <div class="field" id="f-close" data-s="close window quit hide dock background 关闭 退出 隐藏 程序坞 后台 窗口">
+                <div class="field-text"><span class="field-label" id="closeLbl">关闭窗口后</span><span class="field-desc" id="closeDesc"></span></div>
+                <div class="field-ctl" role="radiogroup" aria-labelledby="closeLbl" aria-describedby="closeDesc">
+                  <label class="opt"><input type="radio" name="closeAct" value="menubar">保留在菜单栏（建议）</label>
+                  <label class="opt"><input type="radio" name="closeAct" value="dock">保留在程序坞</label>
+                  <label class="opt"><input type="radio" name="closeAct" value="quit">退出</label></div>
+                <p class="help" id="closeHelp" role="status" aria-live="polite"></p></div>
+            </div></fieldset>
+            <fieldset class="group"><legend>模块与扩展</legend><div class="group-box">
+              <div class="field" id="f-modules" data-s="modules extension extensions ai plugin future roadmap account sync 模块 扩展 插件 人工智能 未来 账户 同步">
+                <div class="field-text"><span class="field-label">已安装模块：剪贴板</span>
+                  <span class="field-desc">OneShot 按模块组织功能。内容整理、AI 处理等候选模块仍在评估；首版不包含账户、云同步或付费。任何上传能力推出前都会单独说明数据去向。</span></div>
+                <div class="field-ctl"><button class="btn" type="button" data-go="clipboard">模块设置<span data-i="arrow-right"></span></button></div></div>
+            </div></fieldset>
+          </section>
+
+          <section class="panel" id="p-appearance" data-sec="appearance" aria-labelledby="h-appearance" hidden>
+            <header class="panel-head"><h3 id="h-appearance">外观与动效</h3><p>作用于 OneShot 的所有窗口，改动立即生效。</p></header>
+            <fieldset class="group"><legend>外观</legend><div class="group-box">
+              <div class="field" id="f-theme" data-s="theme appearance dark light mode color scheme 深色 浅色 暗色 夜间 外观 主题 配色">
+                <div class="field-text"><span class="field-label" id="themeLbl">主题</span><span class="field-desc">“跟随系统”随 macOS 外观切换。</span></div>
+                <div class="field-ctl" role="radiogroup" aria-labelledby="themeLbl">
+                  <label class="opt"><input type="radio" name="theme" value="light">浅色</label>
+                  <label class="opt"><input type="radio" name="theme" value="dark">深色</label>
+                  <label class="opt"><input type="radio" name="theme" value="system">跟随系统（建议）</label></div></div>
+              <div class="field" id="f-motion" data-s="motion animation reduce reduced transitions 动画 动效 减少动态 过渡">
+                <div class="field-text"><span class="field-label" id="motionLbl">动效</span><span class="field-desc">覆盖打开、切换、加载与点击反馈。</span></div>
+                <div class="field-ctl" role="radiogroup" aria-labelledby="motionLbl" aria-describedby="motionHelp">
+                  <label class="opt"><input type="radio" name="motion" value="full">完整</label>
+                  <label class="opt"><input type="radio" name="motion" value="reduced">减少</label>
+                  <label class="opt"><input type="radio" name="motion" value="off">关闭</label></div>
+                <p class="help" id="motionHelp"></p></div>
+            </div></fieldset>
+            <fieldset class="group"><legend>文字与密度</legend><div class="group-box">
+              <div class="field" id="f-font" data-s="font typeface ui font sf pro pingfang 字体 界面字体 苹方 字形">
+                <div class="field-text"><label class="field-label" for="fontSel">界面字体</label><span class="field-desc font-sample">OneShot 剪贴板 · Aa Bb 0123</span></div>
+                <div class="field-ctl"><select id="fontSel"><option value="system">系统 SF + 苹方（建议）</option><option value="pingfang">苹方优先</option></select></div></div>
+              <div class="field" id="f-mono" data-s="monospace mono code font menlo sf mono 等宽 代码字体">
+                <div class="field-text"><label class="field-label" for="monoSel">代码字体</label><span class="field-desc font-sample"><code>let x = 0 // 0O lI1</code></span></div>
+                <div class="field-ctl"><select id="monoSel"><option value="sf">SF Mono（建议）</option><option value="menlo">Menlo</option></select></div></div>
+              <div class="field" id="f-text" data-s="font size text size larger zoom 字号 字体大小 文字大小 放大">
+                <div class="field-text"><span class="field-label" id="textLbl">文字大小</span><span class="field-desc">只提供放大档，中文正文不小于 13px。</span></div>
+                <div class="field-ctl" role="radiogroup" aria-labelledby="textLbl">
+                  <label class="opt"><input type="radio" name="textSize" value="md">标准 13（建议）</label>
+                  <label class="opt"><input type="radio" name="textSize" value="lg">较大 14</label></div></div>
+              <div class="field" id="f-density" data-s="density compact comfortable spacing padding 密度 紧凑 宽松 间距 行距">
+                <div class="field-text"><span class="field-label" id="densLbl">密度</span><span class="field-desc">只改变行距和控件高度，字号不变。</span></div>
+                <div class="field-ctl" role="radiogroup" aria-labelledby="densLbl">
+                  <label class="opt"><input type="radio" name="density" value="compact">紧凑（建议）</label>
+                  <label class="opt"><input type="radio" name="density" value="comfortable">宽松</label></div></div>
+            </div></fieldset>
+          </section>
+
+          <section class="panel" id="p-shortcuts" data-sec="shortcuts" aria-labelledby="h-shortcuts" hidden>
+            <header class="panel-head"><h3 id="h-shortcuts">全局快捷键</h3><p>在任何应用中都可触发。录制后需保存才生效；未保存的草稿会保留到保存或放弃。模拟：不注册系统快捷键，浏览器也会占用部分组合。</p></header>
+            <fieldset class="group"><legend>命令</legend><div class="group-box">
+              <div class="field" id="f-hk-open" data-s="hotkey shortcut keyboard open toggle window 快捷键 唤起 打开 窗口 全局 组合键">
+                <div class="field-text"><span class="field-label">打开 / 关闭剪贴板</span><span class="field-desc">模块：剪贴板</span></div>
+                <div class="field-ctl"><span class="hk-vals" id="hkVals-open"></span>
+                  <button class="btn" type="button" data-hk="rec" data-cmd="open" aria-pressed="false"></button>
+                  <button class="btn primary" type="button" data-hk="save" data-cmd="open" hidden></button>
+                  <button class="btn quiet" type="button" data-hk="drop" data-cmd="open" hidden>放弃</button></div>
+                <p class="help" id="hkHelp-open" role="status" aria-live="polite"></p></div>
+              <div class="field" id="f-hk-pause" data-s="hotkey shortcut pause resume record 快捷键 暂停 恢复 记录 全局">
+                <div class="field-text"><span class="field-label">暂停 / 恢复记录</span><span class="field-desc">模块：剪贴板 · 默认未设置</span></div>
+                <div class="field-ctl"><span class="hk-vals" id="hkVals-pause"></span>
+                  <button class="btn" type="button" data-hk="rec" data-cmd="pause" aria-pressed="false"></button>
+                  <button class="btn primary" type="button" data-hk="save" data-cmd="pause" hidden></button>
+                  <button class="btn quiet" type="button" data-hk="drop" data-cmd="pause" hidden>放弃</button></div>
+                <p class="help" id="hkHelp-pause" role="status" aria-live="polite"></p></div>
+            </div></fieldset>
+            <fieldset class="group"><legend>默认值</legend><div class="group-box">
+              <div class="field" id="f-hk-reset" data-s="reset restore default shortcuts 恢复默认 重置 快捷键 默认值">
+                <div class="field-text"><span class="field-label">恢复默认快捷键</span><span class="field-desc">只影响本页的全局快捷键；外观、隐私和模块设置不变。确认前会列出旧值和新值。</span></div>
+                <div class="field-ctl"><button class="btn" type="button" id="hkReset">恢复默认…</button></div>
+                <p class="help" id="hkResetHelp" role="status" aria-live="polite"></p></div>
+            </div></fieldset>
+          </section>
+
+          <section class="panel" id="p-privacy" data-sec="privacy" aria-labelledby="h-privacy" hidden>
+            <header class="panel-head"><h3 id="h-privacy">隐私与数据</h3><p>OneShot 级的数据位置与存储。模块专属规则（捕获、排除、保留期限、权限）在各模块里设置。</p></header>
+            <fieldset class="group"><legend>本机处理</legend><div class="group-box">
+              <div class="field" id="f-local" data-s="local privacy upload cloud sync log logging 本地 本机 上传 同步 云 日志 隐私">
+                <div class="field-text"><span class="field-label">数据位置</span><span class="field-desc">记录只保存在这台 Mac 上，不上传、不同步；日志不记录剪贴板原文。（建议，待隐私设计确认）</span></div>
+                <div class="field-ctl"><span class="state"><span data-i="shield"></span>仅本机</span></div></div>
+              <div class="field" id="f-storage" data-s="storage disk size space usage 存储 空间 占用 大小">
+                <div class="field-text"><span class="field-label">存储占用</span><span class="field-desc" id="storeDesc"></span></div>
+                <div class="field-ctl"><span class="val" id="storeVal"></span></div></div>
+              <div class="field" id="f-modrules" data-s="exclude retention module rules 排除 规则 保留期限 模块规则">
+                <div class="field-text"><span class="field-label">模块规则</span><span class="field-desc">应用排除、保留期限和容量属于剪贴板模块。</span></div>
+                <div class="field-ctl"><button class="btn" type="button" data-go="clipboard" data-focus="f-excl">剪贴板规则<span data-i="arrow-right"></span></button></div></div>
+            </div></fieldset>
+            <fieldset class="group"><legend>清理数据</legend><div class="group-box">
+              <div class="field" id="f-clean" data-s="clear delete wipe erase clean history remove data 清理 清空 删除 抹掉 历史 数据">
+                <div class="field-text"><label class="field-label" for="cleanScope">清理剪贴板记录</label><span class="field-desc">确认前会列出数量；可在 8 秒内撤销（模拟）。</span></div>
+                <div class="field-ctl">
+                  <select id="cleanScope"><option value="old">超过 7 天的记录</option><option value="all">全部记录</option></select>
+                  <label class="opt"><input type="checkbox" id="cleanFav">同时删除收藏</label>
+                  <button class="btn" type="button" id="cleanBtn"></button></div>
+                <p class="help" id="cleanHelp" role="status" aria-live="polite"></p></div>
+            </div></fieldset>
+          </section>
+
+          <section class="panel" id="p-clipboard" data-sec="clipboard" aria-labelledby="h-clipboard" hidden>
+            <header class="panel-head"><h3 id="h-clipboard">模块 · 剪贴板</h3><p>只作用于剪贴板模块。</p></header>
+            <fieldset class="group"><legend>模块</legend><div class="group-box">
+              <div class="field" id="f-clipOn" data-s="enable disable module clipboard turn off 启用 停用 关闭 模块 剪贴板">
+                <label class="field-text" for="clipSw"><span class="field-label">启用剪贴板模块</span><span class="field-desc">停用后不记录新内容、唤起快捷键不响应、复制和粘贴停用；已有记录保留。</span></label>
+                <div class="field-ctl"><input class="switch" type="checkbox" role="switch" id="clipSw" aria-describedby="clipOffNote"></div></div>
+            </div></fieldset>
+            <p class="note-box" id="clipOffNote" hidden>剪贴板模块已停用，以下设置暂不可更改。重新启用后恢复原值。</p>
+            <fieldset class="panel" id="clipBody">
+              <fieldset class="group"><legend>捕获</legend><div class="group-box">
+                <div class="field" id="f-rec" data-s="pause resume record capture recording 暂停 恢复 记录 捕获">
+                  <div class="field-text"><span class="field-label">记录</span><span class="field-desc">暂停只影响之后的复制，已有记录不变。</span></div>
+                  <div class="field-ctl"><span class="state" id="recNow"></span><button class="btn" type="button" id="pauseBtn"></button></div></div>
+                <div class="field" id="f-types" data-s="content type types text code link image 内容类型 文字 代码 链接 图片">
+                  <div class="field-text"><span class="field-label" id="typesLbl">内容类型</span><span class="field-desc">关闭的类型不会被记录。</span></div>
+                  <div class="field-ctl" role="group" aria-labelledby="typesLbl">
+                    <label class="opt"><input type="checkbox" name="ctype" value="text">文字</label>
+                    <label class="opt"><input type="checkbox" name="ctype" value="code">代码</label>
+                    <label class="opt"><input type="checkbox" name="ctype" value="link">链接</label>
+                    <label class="opt"><input type="checkbox" name="ctype" value="image">图片</label></div></div>
+              </div></fieldset>
+              <fieldset class="group" data-path="剪贴板 › 历史"><legend>保留策略</legend><div class="group-box">
+                <div class="field" id="f-ret" data-s="retention retain days keep expire history 保留 期限 天数 过期 历史">
+                  <div class="field-text"><label class="field-label" for="retSel">保留期限</label><span class="field-desc">超过期限的未收藏记录会被清理。</span></div>
+                  <div class="field-ctl"><select id="retSel"><option value="1">1 天</option><option value="7">7 天</option><option value="30">30 天（建议）</option><option value="90">90 天</option></select></div></div>
+                <div class="field" id="f-cap" data-s="capacity limit max maximum items 容量 上限 条数 数量">
+                  <div class="field-text"><label class="field-label" for="capSel">容量上限</label><span class="field-desc">只计未收藏条目；收藏不占容量，也不会被自动清理。</span></div>
+                  <div class="field-ctl"><select id="capSel"><option value="6">6 条（评审演示）</option><option value="500">500 条</option><option value="2000">2000 条（建议）</option><option value="5000">5000 条</option></select></div>
+                  <p class="help" id="histHelp" role="status" aria-live="polite"></p></div>
+              </div></fieldset>
+              <fieldset class="group"><legend>隐私</legend><div class="group-box">
+                <div class="field" id="f-excl" data-s="exclude excluded apps password keychain ignore 排除 应用 密码 钥匙串 忽略">
+                  <div class="field-text"><span class="field-label" id="exclLbl">应用排除</span><span class="field-desc">来自这些应用的复制不会被记录。</span></div>
+                  <div class="field-ctl" role="group" aria-labelledby="exclLbl">
+                    <label class="opt"><input type="checkbox" name="excl" value="钥匙串访问">钥匙串访问</label>
+                    <label class="opt"><input type="checkbox" name="excl" value="密码">密码</label>
+                    <label class="opt"><input type="checkbox" name="excl" value="终端">终端</label></div></div>
+              </div></fieldset>
+              <fieldset class="group"><legend>粘贴权限</legend><div class="group-box">
+                <div class="field" id="f-perm" data-s="permission accessibility paste authorize 权限 辅助功能 粘贴 授权">
+                  <div class="field-text"><span class="field-label">辅助功能权限</span><span class="field-desc">只有“粘贴”需要：回到目标应用并代按 ⌘V。“复制”不需要。</span></div>
+                  <div class="field-ctl"><span class="state" id="permState"></span><button class="btn" type="button" id="permAct"></button></div>
+                  <p class="help" id="permHelp" role="status" aria-live="polite"></p></div>
+              </div></fieldset>
+            </fieldset>
+          </section>
+
+          <section class="panel" id="p-hits" aria-labelledby="h-hits" hidden>
+            <header class="panel-head"><h3 id="h-hits">搜索结果</h3><p id="hitsCount" role="status" aria-live="polite"></p></header>
+            <div class="hits" id="hits"></div>
+          </section>
+        </div>
+      <footer class="set-foot"><p class="set-status" id="setStatus" role="status" aria-live="polite"></p>
+        <button class="btn" type="button" id="setStatusAct" hidden></button>
+        <button class="btn primary" type="button" data-close>返回剪贴板 <kbd>Esc</kbd></button></footer>
+  </section>
+  </div>
+
+  <!-- 浮层：锚定菜单、撤销/失败提示、通用确认弹窗 -->
+  <div class="hosts">
+    <div class="menu" id="menu" role="menu" aria-label="更多操作" hidden></div>
+    <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+    <dialog id="askDlg" aria-labelledby="askTitle"></dialog>
+  </div>
+</div>
+
+<div class="reopen" id="reopen" hidden>
+  <span id="reopenMsg"></span><span class="spacer"></span>
+  <button class="btn primary" id="reopenBtn" type="button"><span id="reopenLbl">重新唤起</span> <kbd id="reopenKey"></kbd></button>
+</div>
+
+<details class="review" id="review">
+  <summary><span data-i="chevron-right"></span>模拟情景 · 评审用（不属于产品界面）</summary>
+  <form class="scn" id="scn">
+    <div class="scn-row"><b>捕获</b>
+      <label>来源 <select id="scnApp"><option>备忘录</option><option>Xcode</option><option>Safari 浏览器</option><option>终端</option><option>钥匙串访问</option></select></label>
+      <button class="btn" type="button" data-cap="text">复制文字</button>
+      <button class="btn" type="button" data-cap="code">复制代码</button>
+      <button class="btn" type="button" data-cap="link">复制链接</button>
+      <button class="btn" type="button" data-cap="image">复制图片</button>
+      <button class="btn" type="button" data-cap="dup">重复复制选中项</button>
+      <button class="btn" type="button" data-cap="unsupported">不支持的类型</button>
+      <button class="btn" type="button" data-cap="readfail">读取失败</button>
+      <label class="opt"><input type="checkbox" id="scnPause">暂停记录</label>
+    </div>
+    <div class="scn-row"><b>输出</b>
+      <label>粘贴权限（原始状态） <select id="scnPerm"><option value="not-requested">未请求</option><option value="denied">已拒绝</option><option value="granted">已允许</option></select></label>
+      <label>耗时 <select id="scnLat"><option value="none">即时</option><option value="slow">1.2 秒后成功</option><option value="timeout">下次 3 秒超时</option></select></label>
+      <label class="opt"><input type="checkbox" id="scnConv">下次“保留格式”转换失败</label>
+      <label class="opt"><input type="checkbox" id="scnFocus">下次粘贴回焦失败</label>
+    </div>
+    <div class="scn-row"><b>管理</b>
+      <label class="opt"><input type="checkbox" id="scnDelFail">下次删除执行失败</label>
+      <label class="opt"><input type="checkbox" id="scnHkFail">下次快捷键保存失败（含恢复默认）</label>
+      <button class="btn" type="button" data-scn="empty">首次空态</button>
+      <button class="btn" type="button" data-scn="sample">恢复示例</button>
+      <button class="btn" type="button" data-scn="settings">打开设置</button>
+    </div>
+    <p class="scn-status" id="scnStatus" role="status" aria-live="polite"></p>
+    <p class="help">全部在浏览器内模拟：不读写系统剪贴板、不请求系统权限、不打开系统设置、不联网。系统“减少动态”：<span id="sysMotion"></span>。</p>
+  </form>
+</details>
+
+<div class="tip" id="tip" role="tooltip" hidden></div>
+<div id="tipDescs" hidden></div>
+
+<script>
+// Lucide 图标，完整图标许可证见本文件头部。
+const ICON = {
+  search: '<path d="m21 21-4.34-4.34"/><circle cx="11" cy="11" r="8"/>',
+  x: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>',
+  moon: '<path d="M20.985 12.486a9 9 0 1 1-9.473-9.472c.405-.022.617.46.402.803a6 6 0 0 0 8.268 8.268c.344-.215.825-.004.803.401"/>',
+  type: '<path d="M12 4v16"/><path d="M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2"/><path d="M9 20h6"/>',
+  code: '<path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/>',
+  link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>',
+  image: '<rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>',
+  star: '<path d="M11.525 2.295a.53.53 0 0 1 .95 0l2.31 4.679a2.123 2.123 0 0 0 1.595 1.16l5.166.756a.53.53 0 0 1 .294.904l-3.736 3.638a2.123 2.123 0 0 0-.611 1.878l.882 5.14a.53.53 0 0 1-.771.56l-4.618-2.428a2.122 2.122 0 0 0-1.973 0L6.396 21.01a.53.53 0 0 1-.77-.56l.881-5.139a2.122 2.122 0 0 0-.611-1.879L2.16 9.795a.53.53 0 0 1 .294-.906l5.165-.755a2.122 2.122 0 0 0 1.597-1.16z"/>',
+  copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
+  'corner-down-left': '<path d="M20 4v7a4 4 0 0 1-4 4H4"/><path d="m9 10-5 5 5 5"/>',
+  ellipsis: '<circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>',
+  'arrow-left': '<path d="m12 19-7-7 7-7"/><path d="M19 12H5"/>',
+  'chevron-right': '<path d="m9 18 6-6-6-6"/>',
+  'circle-alert': '<circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/>',
+  monitor: '<rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>',
+  trash: '<path d="M10 11v6"/><path d="M14 11v6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"/><path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>',
+  'undo-2': '<path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11"/>',
+  'redo-2': '<path d="m15 14 5-5-5-5"/><path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13"/>',
+  'check-check': '<path d="M18 6 7 17l-5-5"/><path d="m22 10-7.5 7.5L13 16"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  loader: '<path d="M12 2v4"/><path d="m16.2 7.8 2.9-2.9"/><path d="M18 12h4"/><path d="m16.2 16.2 2.9 2.9"/><path d="M12 18v4"/><path d="m4.9 19.1 2.9-2.9"/><path d="M2 12h4"/><path d="m4.9 4.9 2.9 2.9"/>',
+  pause: '<rect x="14" y="3" width="5" height="18" rx="1"/><rect x="5" y="3" width="5" height="18" rx="1"/>',
+  command: '<path d="M15 6v12a3 3 0 1 0 3-3H6a3 3 0 1 0 3 3V6a3 3 0 1 0-3 3h12a3 3 0 1 0-3-3"/>',
+  history: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/>',
+  clipboard: '<rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>',
+  shield: '<path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/>',
+  'arrow-right': '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  play: '<path d="M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"/>',
+};
+// 16px 线宽 1.75，20px 1.6，24px 1.5：渲染后的笔画都接近 1.2–1.5px
+const STROKE = { '': 1.75, md: 1.6, lg: 1.5 };
+const svg = (n, cls = '') => `<svg class="ic ${cls}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${STROKE[cls.match(/\b(md|lg)\b/)?.[1] || '']}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICON[n]}</svg>`;
+
+// 模拟图片内容（本地内联图形，不是图标）
+const IMG = {
+  sketch: `<svg viewBox="0 0 320 200" role="img" aria-label="界面草图：左侧列表、右侧预览"><rect class="im-bg" width="320" height="200"/>
+    <rect class="im-line" x="12" y="12" width="296" height="16" rx="4"/><rect class="im-line" x="12" y="36" width="116" height="138" rx="4"/>
+    <rect class="im-lime" x="16" y="42" width="108" height="16" rx="3"/><rect class="im-bg" x="16" y="64" width="108" height="12" rx="3"/>
+    <rect class="im-bg" x="16" y="82" width="108" height="12" rx="3"/><rect class="im-bg" x="16" y="100" width="108" height="12" rx="3"/>
+    <rect class="im-ink" x="140" y="44" width="92" height="8" rx="2"/><rect class="im-grey" x="140" y="60" width="160" height="4" rx="2"/>
+    <rect class="im-grey" x="140" y="70" width="148" height="4" rx="2"/><rect class="im-grey" x="140" y="80" width="156" height="4" rx="2"/>
+    <rect class="im-line" x="140" y="96" width="168" height="62" rx="4"/><rect class="im-ink" x="230" y="180" width="78" height="12" rx="3"/>
+    <rect class="im-line" x="12" y="180" width="64" height="12" rx="3"/></svg>`,
+  swatch: `<svg viewBox="0 0 320 160" role="img" aria-label="配色样张：墨灰、lime、橄榄、纸白色块，以及 OneShot 品牌标记——lime 圆角底上的墨色开环与右上独立圆点"><rect class="im-bg" width="320" height="160"/>
+    <rect class="im-ink" x="16" y="16" width="64" height="96" rx="6"/><rect class="im-lime" x="88" y="16" width="64" height="96" rx="6"/>
+    <rect class="im-olive" x="160" y="16" width="64" height="96" rx="6"/><rect class="im-line" x="232" y="16" width="72" height="96" rx="6"/>
+    <svg x="240" y="36" width="56" height="56" viewBox="0 0 512 512" aria-hidden="true"><rect x="16" y="16" width="480" height="480" rx="108" fill="#CDEB18"/><path d="M256 132 A124 124 0 1 0 380 256" fill="none" stroke="#22231F" stroke-width="56" stroke-linecap="round"/><circle cx="343.68" cy="168.32" r="28" fill="#22231F"/></svg>
+    <rect class="im-grey" x="16" y="124" width="56" height="6" rx="3"/><rect class="im-grey" x="88" y="124" width="40" height="6" rx="3"/>
+    <rect class="im-grey" x="160" y="124" width="48" height="6" rx="3"/><rect class="im-grey" x="232" y="124" width="36" height="6" rx="3"/></svg>`,
+};
+
+const FNS = { history: '历史', fav: '收藏' };
+const TYPES = { text: ['文字', 'type'], code: ['代码', 'code'], link: ['链接', 'link'], image: ['图片', 'image'] };
+let items = [
+  { id: 'c1', type: 'code', title: 'PasteboardWatcher.swift', source: 'Xcode', time: '2 分钟前', fav: true, lang: 'Swift',
+    body: `import AppKit\n\nfinal class PasteboardWatcher {\n    private var lastChangeCount = NSPasteboard.general.changeCount\n    private var timer: Timer?\n\n    func start(onChange: @escaping (NSPasteboard) -> Void) {\n        timer = Timer.scheduledTimer(withTimeInterval: 0.5, repeats: true) { [weak self] _ in\n            guard let self else { return }\n            let board = NSPasteboard.general\n            guard board.changeCount != self.lastChangeCount else { return }\n            self.lastChangeCount = board.changeCount\n            onChange(board)\n        }\n    }\n\n    func stop() {\n        timer?.invalidate()\n        timer = nil\n    }\n}` },
+  { id: 't1', type: 'text', title: 'OneShot 需求摘录：一次完整使用', source: '备忘录', time: '6 分钟前', fav: false,
+    body: 'OneShot 的核心价值，是让用户以更少的打断，找回刚才用过的内容，并把它准确地放回当前工作。\n\n用一条完整任务检验产品，而不是分别验收几个窗口。用户从正在工作的应用出发，也应能顺利回到那里。\n\n捕获内容：用户复制文字、代码、链接或图片。OneShot 按已公开的规则记录内容，能够解释未收录的原因。\n\n检索与筛选：快捷键唤起窗口后，可以输入关键词、切换类型或浏览历史。中文输入法组词时，候选操作不能被误当成搜索确认。\n\n选中与预览：列表选中项和预览始终对应。长文本可以滚动，图片可辨认，代码与普通文字有合适的呈现方式。\n\n复制或粘贴：用户选择所需输出格式。复制应写入系统剪贴板；粘贴还需准确恢复目标应用焦点，并验证系统权限和目标应用兼容性。\n\n反馈与再次使用：成功反馈简短明确。失败说明原因与下一步，不显示假成功。常用内容可以收藏，历史可继续检索和管理。\n\n取消操作时，原始内容与现有记录不应丢失。没有搜索结果时，输出动作必须失效，不能继续复制或粘贴上一次选中的旧条目。\n\n高密度应提高有效内容占比，不能靠压小文字或隐藏必要操作实现。菜单与弹窗要正确锚定，关闭后焦点回到合理位置；删除确认明确列出对象或数量，并让取消成为安全的默认选择。' },
+  { id: 'l1', type: 'link', title: 'NSPasteboard | Apple Developer Documentation', source: 'Safari 浏览器', time: '12 分钟前', fav: false,
+    body: 'developer.apple.com/documentation/appkit/nspasteboard' },
+  { id: 'i1', type: 'image', title: '工作区草图.png', source: '预览', time: '18 分钟前', fav: false, img: 'sketch', size: '1280 × 800 · 214 KB', body: '' },
+  { id: 'c2', type: 'code', title: 'xcodebuild -scheme OneShot build', source: '终端', time: '25 分钟前', fav: false, lang: 'Shell',
+    body: 'xcodebuild -project OneShot.xcodeproj \\\n  -scheme OneShot \\\n  -configuration Debug \\\n  build' },
+  { id: 't2', type: 'text', title: '发布说明草稿 v0.1', source: '页面', time: '40 分钟前', fav: true,
+    body: '发布说明草稿 v0.1\n\n本版本只在本机处理剪贴板内容。\n\n· 支持文字、代码、链接与图片的检索和预览\n· 收藏的条目不会随清空历史一起删除\n· 粘贴需要辅助功能权限，首次使用时请求',
+    rich: '<h4>发布说明草稿 v0.1</h4><p>本版本<strong>只在本机处理</strong>剪贴板内容。</p><ul><li>支持文字、代码、链接与图片的检索和预览</li><li>收藏的条目<strong>不会</strong>随清空历史一起删除</li><li>粘贴需要辅助功能权限，首次使用时请求</li></ul>' },
+  { id: 'l2', type: 'link', title: 'API Design Guidelines', source: 'Safari 浏览器', time: '1 小时前', fav: false,
+    body: 'swift.org/documentation/api-design-guidelines/' },
+  { id: 'i2', type: 'image', title: '配色样张.png', source: '访达', time: '2 小时前', fav: true, img: 'swatch', size: '1200 × 600 · 96 KB', body: '' },
+  { id: 'c3', type: 'code', title: 'retention.json', source: 'Xcode', time: '昨天', fav: false, lang: 'JSON',
+    body: '{\n  "retentionDays": 30,\n  "maxItems": 2000,\n  "keepFavorites": true,\n  "excludedApps": ["钥匙串访问"]\n}' },
+  { id: 't3', type: 'text', title: '周四 15:00 原型评审，带浅色与深色截图', source: '备忘录', time: '昨天', fav: false,
+    body: '周四 15:00 原型评审，带浅色与深色截图。' },
+  { id: 'c4', type: 'code', title: 'build.log（2400 行）', source: '终端', time: '9 天前', fav: false, lang: 'Log',
+    body: Array.from({ length: 2400 }, (_, i) => `[${String(i + 1).padStart(4, '0')}] CompileSwift normal arm64 Sources/OneShot/Module${i % 37}.swift`).join('\n') },
+  { id: 't4', type: 'text', title: '隐私边界待确认：排除应用与暂停', source: '页面', time: '21 天前', fav: false,
+    body: '是否提供应用排除或临时暂停，应在隐私设计中确认。日志避免记录原始剪贴板内容。' },
+];
+const SAMPLE = items.map(it => ({ ...it }));
+
+// fn：第二栏功能（history / fav）；filter 只是第三栏的类型条件
+const state = { fn: 'history', q: '', filter: 'all', sel: null, fmt: 'plain', composing: false, view: 'list', multi: false, picked: new Set() };
+// 设置均为建议值（OneShot 级 + 剪贴板模块级）；flags 是评审情景的“下次失败”开关，触发一次后复位
+const HK_DEFAULT = { open: { label: '⌥⌘V', meta: true, alt: true, ctrl: false, shift: false, code: 'KeyV' }, pause: null };
+const S = {
+  theme: 'system', motion: 'full', font: 'system', mono: 'sf', text: 'md', density: 'compact',
+  menubar: true, login: false, closeAct: 'menubar',
+  clipOn: true, types: ['text', 'code', 'link', 'image'], ret: 30, cap: 2000, paused: false, excl: ['钥匙串访问'],
+  perm: 'not-requested', lat: 'none', hk: { ...HK_DEFAULT } };
+const flags = { conv: false, focus: false, delFail: false, hkFail: false };
+// 撤销栈同时快照条目与保留策略：撤销一次清理会把策略和条目一起还原，不会出现“条目回来了但超出上限”
+const hist = { undo: [], redo: [] };
+const policy = () => ({ ret: S.ret, cap: S.cap });
+let pending = null, lastSig = '', toastTimer = 0;
+const $ = id => document.getElementById(id);
+const app = $('app'), list = $('list'), q = $('q'), fx = $('fx'), brand = document.querySelector('.rail .brand');
+const mobile = matchMedia('(max-width: 800px)');
+const esc = s => s.replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const short = s => (s.length > 18 ? s.slice(0, 18) + '…' : s);
+const current = () => items.find(it => it.id === state.sel) || null;
+// 结果行每次换文字，点/环字形先回到 idle；只有 output 流程会再把它设成 wait / ok / err
+const say = msg => { $('result').textContent = msg; fx.dataset.fx = 'idle'; };
+const ageDays = it => (it.time === '昨天' ? 1 : +((it.time.match(/(\d+) 天前/) || [0, 0])[1]));
+const snap = () => items.map(it => ({ ...it }));
+function clearResult() { say(''); $('result').classList.remove('err'); $('resultAct').hidden = true; }
+// 失败：说明原因，并给出一个下一步按钮
+function fail(msg, label, run) {
+  say(msg); $('result').classList.add('err'); fx.dataset.fx = 'err';
+  const b = $('resultAct');
+  b.textContent = label; b.hidden = false;
+  b.onclick = () => { clearResult(); run(); };
+}
+
+function results() {
+  const k = state.q.trim().toLowerCase();
+  return items.filter(it =>
+    (state.fn !== 'fav' || it.fav) && (state.filter === 'all' || it.type === state.filter) &&
+    (!k || `${it.title}\n${it.body}\n${it.source}`.toLowerCase().includes(k)));
+}
+
+function render() {
+  const r = results();
+  if (!r.some(it => it.id === state.sel)) state.sel = r.length ? r[0].id : null;
+  // 结果或选中项变了，旧的操作反馈不再对应当前条目
+  const sig = `${state.sel}|${r.map(it => it.id).join(',')}`;
+  if (sig !== lastSig) { lastSig = sig; if (!pending) clearResult(); }
+  state.picked.forEach(id => { if (!items.some(it => it.id === id)) state.picked.delete(id); });
+  const n = state.picked.size;
+  $('multibar').hidden = !state.multi;
+  $('mbCount').textContent = `多选 · 已选 ${n} 条`;
+  $('mbDel').innerHTML = svg('trash') + `删除 ${n} 条…`;
+  $('mbDel').disabled = !n;
+  $('cntHistory').textContent = items.length;
+  $('cntFav').textContent = items.filter(it => it.fav).length;
+  document.querySelectorAll('#fnNav [data-fn]').forEach(b => {
+    if (b.dataset.fn === state.fn) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+  list.setAttribute('aria-label', `剪贴板${FNS[state.fn]}`);
+  // 搜索框的可访问名与提示随当前功能（历史 / 收藏）切换
+  $('qLbl').textContent = `搜索${FNS[state.fn]}`;
+  q.placeholder = state.fn === 'fav' ? '在收藏中搜索…' : '搜索文字、代码、链接…';
+  renderList(r);
+  renderPreview();
+  renderActions();
+  app.dataset.view = state.view;
+}
+
+function renderList(r) {
+  const label = FNS[state.fn] + (state.filter === 'all' ? '' : ` · ${TYPES[state.filter][0]}`);
+  list.innerHTML = `<div class="cap">${label} · ${r.length} 条${state.q ? ` · 匹配「${esc(state.q)}」` : ''}</div>` + r.map(it => `
+    <div class="row" role="option" id="opt-${it.id}" data-id="${it.id}" aria-selected="${it.id === state.sel}"${state.multi ? ` aria-checked="${state.picked.has(it.id)}"` : ''}>
+      <span class="row-ic">${state.multi ? `<span class="pick">${svg('check')}</span>`
+        : it.type === 'image' ? `<span class="thumb">${IMG[it.img]}</span>` : svg(TYPES[it.type][1])}</span>
+      <span class="row-main"><span class="row-title">${esc(it.title)}</span>
+        <span class="row-meta">${TYPES[it.type][0]} · ${it.source} · ${it.time}${it.fav ? ' · 已收藏' : ''}</span></span>
+      ${it.fav ? `<span class="row-fav">${svg('star', 'fill')}</span>` : ''}
+    </div>`).join('');
+  if (state.sel) {
+    list.setAttribute('aria-activedescendant', `opt-${state.sel}`);
+    $(`opt-${state.sel}`).scrollIntoView({ block: 'nearest' });
+  } else list.removeAttribute('aria-activedescendant');
+}
+
+function renderPreview() {
+  const it = current(), body = $('pvBody');
+  $('favBtn').hidden = !it;
+  if (!it && !items.length) {
+    $('pvType').innerHTML = ''; $('pvTitle').textContent = '还没有记录'; $('pvMeta').textContent = '输出已停用';
+    body.innerHTML = `<div class="empty">${svg('clipboard', 'md')}
+      <p>在任意应用里复制文字、代码、链接或图片，它们会出现在这里。原型中请用下方“模拟情景 › 捕获”。</p>
+      <p class="note">记录只保存在本机；首次粘贴时才会说明并请求辅助功能权限（建议流程）。</p>
+      <div class="acts"><button class="btn" type="button" data-act="sample">恢复示例</button></div></div>`;
+    return;
+  }
+  if (!it) {
+    $('pvType').innerHTML = ''; $('pvTitle').textContent = '没有匹配'; $('pvMeta').textContent = '输出已停用';
+    body.innerHTML = `<div class="empty">${svg('circle-alert', 'md')}
+      <p>${state.q ? `没有与「${esc(state.q)}」匹配的条目。` : state.fn === 'fav' && state.filter === 'all' ? '还没有收藏。在历史里选中条目后按 ⌘D 收藏。' : '当前筛选下没有条目。'}</p>
+      <div class="acts">${state.q ? '<button class="btn" type="button" data-act="clear">清除搜索</button>' : ''}
+      ${state.filter !== 'all' ? '<button class="btn" type="button" data-act="all">切换到全部</button>' : ''}</div></div>`;
+    return;
+  }
+  const [label, icon] = TYPES[it.type];
+  $('pvType').innerHTML = svg(icon) + label + (it.lang ? ` · ${it.lang}` : '');
+  $('pvTitle').textContent = it.title;
+  $('favBtn').setAttribute('aria-pressed', it.fav);
+  $('favBtn').innerHTML = svg('star') + (it.fav ? '已收藏' : '收藏');
+  let meta = `${it.source} · ${it.time}`;
+  if (it.type === 'text' || it.type === 'code') meta += ` · ${it.body.split('\n').length} 行 · ${it.body.length} 字符`;
+  if (it.type === 'image') meta += ` · ${it.size}`;
+  if (it.rich) meta += ' · 含格式';
+  $('pvMeta').textContent = meta;
+  if (it.type === 'code') {
+    const lines = it.body.split('\n');
+    body.innerHTML = `<pre class="code">${lines.slice(0, 2000).map(l => `<span class="ln">${esc(l) || ' '}</span>`).join('')}</pre>`
+      + (lines.length > 2000 ? `<p class="note">预览只显示前 2000 行（共 ${lines.length} 行）；复制和粘贴输出完整内容（模拟）。</p>` : '');
+  } else if (it.type === 'link') {
+    body.innerHTML = `<p class="domain">${esc(it.body.split('/')[0])}</p><p class="url">${esc(it.body)}</p>
+      <p class="prose">${esc(it.title)}</p><p class="note">原型只显示链接文字，不打开网页、不联网。</p>`;
+  } else if (it.type === 'image') {
+    body.innerHTML = `<figure class="figure">${IMG[it.img]}</figure><p class="note">${esc(it.title)} · ${it.size}（模拟图片）</p>`;
+  } else {
+    body.innerHTML = `<div class="prose">${state.fmt === 'rich' && it.rich ? it.rich
+      : it.body.split('\n\n').map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('')}</div>`;
+  }
+  body.scrollTop = 0;
+}
+
+function renderActions() {
+  const off = !state.sel || !!pending || !S.clipOn;
+  $('moduleOff').hidden = S.clipOn;
+  $('railClip').toggleAttribute('data-off', !S.clipOn);
+  $('railClip').setAttribute('aria-label', S.clipOn ? '剪贴板' : '剪贴板（已停用）');
+  $('copyBtn').disabled = off; $('pasteBtn').disabled = off;
+  $('clearQ').hidden = !q.value;
+  document.querySelectorAll('#filters .chip').forEach(b => b.setAttribute('aria-pressed', b.dataset.filter === state.filter));
+  document.querySelectorAll('#fmtSeg button').forEach(b => b.setAttribute('aria-checked', b.dataset.fmt === state.fmt));
+  const [icon, label] = { light: ['sun', '浅色'], dark: ['moon', '深色'], system: ['monitor', '跟随系统'] }[S.theme];
+  $('themeBtn').innerHTML = svg(icon, 'md');
+  $('themeBtn').setAttribute('aria-label', `主题：当前${label}，点击切换`);
+  $('themeBtn').dataset.tip = `主题：${label}`;
+  $('recState').innerHTML = !S.clipOn ? '<span>不记录</span>' : S.paused ? svg('pause') + '<span>已暂停记录</span>' : '<i class="dot" aria-hidden="true"></i><span>记录中</span>';
+}
+
+// ---- 操作 ----
+function move(delta) {
+  const r = results();
+  if (!r.length) return;
+  const i = Math.max(0, r.findIndex(it => it.id === state.sel));
+  const n = delta === Infinity ? r.length - 1 : delta === -Infinity ? 0 : Math.min(r.length - 1, Math.max(0, i + delta));
+  state.sel = r[n].id;
+  render();
+}
+function select(id, open) {
+  state.sel = id;
+  if (open && mobile.matches) state.view = 'preview';
+  render();
+  if (state.view === 'preview' && mobile.matches) $('backBtn').focus();
+  else list.focus({ preventScroll: true });
+}
+function setView(v) {
+  state.view = v;
+  render();
+  (v === 'preview' ? $('backBtn') : list).focus({ preventScroll: true });
+}
+function setFilter(f) { state.filter = f; render(); }
+// 历史 / 收藏各自记住查询、类型条件与选中项；目标侧无结果时 render() 置空选中，不借用另一侧的旧对象
+const fnMem = { history: null, fav: null };
+function setFn(fn) {
+  if (fn === state.fn) return;
+  if (pending) cancelOutput(); // 进行中的输出属于旧上下文，切换即取消，不补写成功
+  fnMem[state.fn] = { q: state.q, filter: state.filter, sel: state.sel };
+  ({ q: state.q, filter: state.filter, sel: state.sel } = fnMem[fn] || { q: '', filter: 'all', sel: null });
+  state.fn = fn; state.view = 'list'; state.multi = false; state.picked.clear();
+  q.value = state.q;
+  render();
+}
+function clearSearch() { q.value = ''; state.q = ''; render(); q.focus(); }
+// ---- 撤销 / 重做：按稳定 ID 记录每次操作前后的差异（b = 操作前，a = 操作后） ----
+// 回放只动本操作改过的条目与字段，之后新捕获的条目原样保留；策略与条目在同一记录里一起还原
+let opSeq = 0;
+function commit(label, mutate) {
+  const b = snap(), pb = policy();
+  mutate();
+  const a = snap(), byB = new Map(b.map(x => [x.id, x])), byA = new Map(a.map(x => [x.id, x]));
+  const ch = [...new Set([...byB.keys(), ...byA.keys()])]
+    .filter(id => JSON.stringify(byB.get(id)) !== JSON.stringify(byA.get(id)))
+    .map(id => ({ id, b: byB.get(id) || null, a: byA.get(id) || null }));
+  const common = ids => ids.filter(id => byB.has(id) && byA.has(id)).join();
+  const rec = { id: `op${++opSeq}`, label, ch, pol: { b: pb, a: policy() }, ord: { b: b.map(x => x.id), a: a.map(x => x.id) } };
+  rec.moved = common(rec.ord.b) !== common(rec.ord.a);
+  hist.undo.push(rec); hist.redo = [];
+  render(); syncSettings(); refreshUndoActs();
+  return rec.id;
+}
+function applyOp(rec, side) {
+  const other = side === 'b' ? 'a' : 'b', ch = new Map(rec.ch.map(c => [c.id, c])), place = [], restored = [];
+  const next = [];
+  items.forEach(it => {
+    const c = ch.get(it.id);
+    if (!c) return next.push(it);
+    ch.delete(it.id);
+    const t = c[side], o = c[other] || {};
+    if (!t) return; // 这次操作新增的条目：回到没有它的一侧
+    const v = { ...it };
+    Object.keys({ ...t, ...o }).forEach(k => { if (t[k] !== o[k]) v[k] = t[k]; }); // 只改本操作改过的字段
+    (rec.moved ? place : next).push(v);
+  });
+  // 本操作删掉 / 加入、当前不在列表的条目才补回；两侧都有但已被容量移除的条目不复活
+  ch.forEach(c => { if (c[side] && !c[other]) { place.push({ ...c[side] }); restored.push(c.id); } });
+  // 按记录时的顺序插回：先找后继、再找前驱；后来捕获的条目保持在原位（通常在最前）
+  const ord = rec.ord[side], at = id => next.findIndex(x => x.id === id);
+  place.sort((x, y) => ord.indexOf(y.id) - ord.indexOf(x.id)).forEach(v => {
+    const i = ord.indexOf(v.id);
+    const succ = ord.slice(i + 1).map(at).find(j => j >= 0);
+    if (succ !== undefined) return next.splice(succ, 0, v);
+    const pred = ord.slice(0, i).reverse().map(at).find(j => j >= 0);
+    next.splice(pred === undefined ? next.length : pred + 1, 0, v);
+  });
+  items = next;
+  if (JSON.stringify(rec.pol.b) !== JSON.stringify(rec.pol.a)) Object.assign(S, rec.pol[side]);
+  return trimToCap(restored);
+}
+function undo() { return travel(hist.undo, hist.redo, 'b', '已撤销'); }
+function redo() { return travel(hist.redo, hist.undo, 'a', '已重做'); }
+function travel(from, to, side, verb) {
+  const h = from.pop();
+  if (!h) { say(verb === '已撤销' ? '没有可撤销的操作' : '没有可重做的操作'); return ''; }
+  // 撤销/重做会替换条目对象：进行中的输出（含点/环延迟计时）一律取消，不晚到成功或误报已删除
+  const cut = pending ? '；进行中的输出已取消，未输出' : '';
+  if (pending) endPending();
+  const p = h.pol[side], polNote = p.ret !== S.ret || p.cap !== S.cap ? `，保留策略恢复为 ${p.ret} 天 / ${p.cap} 条` : '';
+  const evicted = applyOp(h, side);
+  to.push(h);
+  render(); syncSettings(); refreshUndoActs();
+  const msg = `${verb}：${h.label}${polNote}${evicted ? `；超过容量上限，移除最旧 ${evicted} 条未收藏条目` : ''}${cut}`;
+  say(msg);
+  return msg;
+}
+// 提示里的“撤销”只撤销它描述的那次操作：已不在栈顶时不误撤别的操作，并说明原因
+function undoOp(id) {
+  const top = hist.undo[hist.undo.length - 1];
+  if (top && top.id === id) return undo();
+  const msg = hist.redo.some(h => h.id === id) ? '这项操作已撤销。' : '之后又有其他操作，这里的撤销已失效；可在剪贴板用 ⌘Z 按顺序撤销。';
+  say(msg);
+  return msg;
+}
+// 撤销栈变化后：设置状态行与 toast 上绑定的撤销若已不是栈顶，收起按钮
+function refreshUndoActs() {
+  const top = (hist.undo[hist.undo.length - 1] || {}).id, b = $('setStatusAct');
+  if (!b.hidden && b.dataset.op && b.dataset.op !== top) {
+    b.hidden = true;
+    $('setStatus').textContent += hist.redo.some(h => h.id === b.dataset.op) ? ' 这项操作已撤销。' : ' 之后又有其他操作，这里的撤销已失效；可在剪贴板用 ⌘Z 按顺序撤销。';
+  }
+  const t = $('toast').querySelector('[data-t="act"][data-op]');
+  if (t && t.dataset.op !== top) t.remove();
+}
+// 容量只计未收藏条目：超出时移除最旧的未收藏条目（捕获与撤销/重做共用；keep 为刚加入/恢复的条目）
+function trimToCap(keep = []) {
+  const loose = items.filter(x => !x.fav), extra = loose.length - S.cap;
+  if (extra <= 0) return 0;
+  const old = loose.filter(x => !keep.includes(x.id)).slice(-extra);
+  items = items.filter(x => !old.includes(x));
+  return old.length;
+}
+function toggleFav() {
+  const it = current();
+  if (!it) return;
+  const id = it.id, on = !it.fav;
+  commit(`${on ? '收藏' : '取消收藏'}「${short(it.title)}」`, () => { items.find(x => x.id === id).fav = on; });
+}
+
+// ---- 输出：权限 → 格式转换 → 回焦 → 有限等待；失败绝不显示“已粘贴” ----
+function output(kind, opts = {}) {
+  const it = current(), verb = kind === 'copy' ? '复制' : '粘贴';
+  if (pending) return;
+  clearResult();
+  if (!S.clipOn) return say('剪贴板模块已停用，复制和粘贴不可用。可在 设置 › 模块 › 剪贴板 中启用。');
+  if (!it) return say('没有选中的条目，复制和粘贴已停用');
+  if (kind === 'paste' && S.perm === 'not-requested') {
+    return askPermission().then(v => (v === 'cancel' ? say('已取消粘贴，记录未改变') : output(kind, opts)));
+  }
+  if (kind === 'paste' && S.perm === 'denied') {
+    return fail('未粘贴：辅助功能权限已拒绝（模拟）。可改为复制后手动 ⌘V；状态见 设置 › 模块 › 剪贴板 › 粘贴权限。', '改为复制', () => output('copy', { manual: true }));
+  }
+  if (flags.conv && state.fmt === 'rich' && it.type !== 'image' && !opts.plain) {
+    flags.conv = false; syncSettings();
+    return fail(`未${verb}：“保留格式”转换失败（模拟），没有输出任何内容。`, '改用纯文本', () => output(kind, { ...opts, plain: true }));
+  }
+  if (kind === 'paste' && flags.focus) {
+    flags.focus = false; syncSettings();
+    return fail('未粘贴：无法回到模拟目标应用的焦点（模拟）。可先复制，再切回目标应用手动 ⌘V。', '复制以手动粘贴', () => output('copy', { ...opts, manual: true }));
+  }
+  if (S.lat === 'none') return finish(kind, it, opts);
+  const timeout = S.lat === 'timeout';
+  if (timeout) { S.lat = 'none'; syncSettings(); }
+  setLoading(kind, true);
+  say(`正在${verb}「${short(it.title)}」…（模拟，Esc 取消）`);
+  // 点/环等待态 150ms 后才出现；两个计时器都挂在 pending 上，结束或取消时一起清掉，不会晚到
+  pending = { kind, show: setTimeout(() => { fx.dataset.fx = 'wait'; }, 150), timer: setTimeout(() => {
+    endPending();
+    if (timeout) fail(`${verb}超时：模拟目标应用 3 秒内无响应，内容未${verb}。`, '重试', () => output(kind, opts));
+    else finish(kind, it, opts);
+  }, timeout ? 3000 : 1200) };
+  renderActions();
+}
+function finish(kind, it, opts) {
+  // 按稳定 ID 重新取条目：同 ID 的克隆仍算存在；真的不在时，“撤销删除”只绑定删掉它的那次操作
+  const id = it.id;
+  it = items.find(x => x.id === id);
+  if (!it) {
+    const op = [...hist.undo].reverse().find(h => h.ch.some(c => c.id === id && c.b && !c.a));
+    if (op) return fail('条目已被删除，未输出。', '撤销删除', () => undoOp(op.id));
+    say('条目已不在历史中（可能因容量上限被移除），未输出。'); $('result').classList.add('err'); fx.dataset.fx = 'err';
+    return;
+  }
+  const fmt = it.type === 'image' ? '图片' : state.fmt === 'rich' && it.rich && !opts.plain ? '保留格式' : '纯文本';
+  const note = state.fmt === 'rich' && !it.rich && it.type !== 'image' ? '（此条无格式）' : '';
+  items = [it, ...items.filter(x => x !== it)];
+  it.time = '刚刚';
+  render();
+  say(kind === 'copy'
+    ? `已复制「${short(it.title)}」· ${fmt}${note}（模拟，未写入系统剪贴板）${opts.manual ? '。请切回目标应用按 ⌘V' : ''}`
+    : `已粘贴「${short(it.title)}」到模拟目标应用 · ${fmt}${note}（模拟）`);
+  fx.dataset.fx = 'ok'; // 成功只在结果行旁落点，不弹 toast
+}
+function setLoading(kind, on) {
+  const b = $(`${kind}Btn`);
+  // 等待的视觉由结果行旁的点/环承担；按钮只换文字，保留原图标，宽度不跳
+  if (on) { b.dataset.html = b.innerHTML; b.innerHTML = svg(kind === 'copy' ? 'copy' : 'corner-down-left') + (kind === 'copy' ? '复制中' : '粘贴中'); b.dataset.state = 'loading'; b.setAttribute('aria-busy', 'true'); }
+  else { b.innerHTML = b.dataset.html; delete b.dataset.state; b.removeAttribute('aria-busy'); }
+  renderActions();
+}
+function endPending() {
+  clearTimeout(pending.show); clearTimeout(pending.timer);
+  const kind = pending.kind;
+  pending = null; setLoading(kind, false);
+}
+function cancelOutput() {
+  endPending();
+  say('已取消，未输出，记录未改变（模拟）');
+}
+function askPermission() {
+  return ask({ title: '粘贴需要辅助功能权限', body: `<p>OneShot 要回到目标应用并代你按下 ⌘V，需要 macOS 的辅助功能权限。复制不需要此权限，内容只在本机处理。</p>
+    <p class="help">这是模拟：不会请求真实权限，也不会打开系统设置。拒绝后仍可复制再手动粘贴。</p>`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: '模拟拒绝', value: 'denied' }, { label: '模拟允许', value: 'granted', cls: 'primary' }] })
+    .then(v => { if (v !== 'cancel') { S.perm = v; syncSettings(); } return v; });
+}
+
+// 剪贴板 Esc 逐级：菜单 → 进行中的输出 → 多选 → 移动端预览 → 搜索 → 类型条件 → 关闭窗口（弹窗由原生 dialog 处理；设置视图另见全局 keydown）
+function escape() {
+  if (!$('menu').hidden) return closeMenu(true);
+  if (pending) return cancelOutput();
+  if (state.multi) return setMulti(false);
+  if (mobile.matches && state.view === 'preview') return setView('list');
+  if (state.q) return clearSearch();
+  if (state.filter !== 'all') return setFilter('all');
+  closeWindow();
+}
+function closeWindow() {
+  if (isSettings()) closeSettings();
+  if (pending) cancelOutput();
+  closeMenu(); hideToast(); hideTip();
+  brand.classList.remove('is-wake');
+  app.hidden = true; $('reopen').hidden = false;
+  // 关闭后的去向来自 设置 › 通用 › 关闭窗口后（模拟）
+  const quit = quitted = S.closeAct === 'quit', key = hotkeyLive() ? S.hk.open.label : '';
+  $('reopenMsg').textContent = quit
+    ? 'OneShot 已退出（模拟）。真实应用退出后全局快捷键不再响应；按钮模拟重新启动，记录仍在本机。'
+    : `剪贴板窗口已关闭（模拟），OneShot ${S.closeAct === 'menubar' ? '保留在菜单栏' : '保留在程序坞'}。记录、搜索与选中项都已保留。`;
+  $('reopenLbl').textContent = quit ? '重新启动 OneShot' : '重新唤起';
+  $('reopenKey').textContent = key; $('reopenKey').hidden = quit || !key;
+  $('reopenBtn').focus();
+}
+// quitted：模拟退出状态，在关闭时按“关闭窗口后”定下，之后改设置也不变；重新启动才清除
+let quitted = false;
+// 全局快捷键只有在模块启用、且应用未退出时才响应
+const hotkeyLive = () => S.clipOn && !!S.hk.open && !quitted;
+function reopen() {
+  quitted = false;
+  app.hidden = false; $('reopen').hidden = true;
+  wake();
+  q.focus(); q.select();
+}
+// 动效档位：用户选 off 恒为 off；系统“减少动态”开启时 full 按 reduced（与 CSS 的 [data-motion] + 媒体查询同一规则）
+const motionLevel = () => (S.motion === 'off' ? 'off' : S.motion === 'reduced' || reduceMQ.matches ? 'reduced' : 'full');
+// 唤起：品牌点落位一次；off 不加类。动画结束（或被打断）即移除类，回到静止
+function wake() {
+  brand.classList.remove('is-wake');
+  if (motionLevel() === 'off') return;
+  void brand.offsetWidth; brand.classList.add('is-wake');
+}
+brand.addEventListener('animationend', () => brand.classList.remove('is-wake'));
+brand.addEventListener('animationcancel', () => brand.classList.remove('is-wake'));
+function toggleTheme() {
+  S.theme = { light: 'dark', dark: 'system', system: 'light' }[S.theme];
+  applyPrefs();
+}
+function applyPrefs() {
+  const root = document.documentElement;
+  root.dataset.theme = S.theme === 'system' ? (darkMQ.matches ? 'dark' : 'light') : S.theme;
+  root.dataset.motion = S.motion;
+  root.dataset.font = S.font; root.dataset.mono = S.mono; root.dataset.text = S.text; root.dataset.density = S.density;
+  renderActions(); syncSettings();
+}
+
+// ---- 通用确认弹窗：第一个按钮（取消）获得焦点；Esc / 点遮罩 = 取消；关闭后焦点回到触发处 ----
+// 叠在设置之上时也是顶层：它自己处理 Esc，设置不会同时关闭
+function ask({ title, body, buttons, cls = '' }) {
+  const d = $('askDlg'), back = document.activeElement;
+  hideTip();
+  d.className = cls;
+  d.innerHTML = `<header class="dlg-head"><h2 id="askTitle">${esc(title)}</h2></header><div class="dlg-body">${body}</div>
+    <footer class="dlg-foot">${buttons.map(b => `<button class="btn ${b.cls || ''}" type="button" value="${b.value}">${b.label}</button>`).join('')}</footer>`;
+  d.showModal();
+  d.querySelector('.dlg-foot button').focus();
+  return new Promise(resolve => {
+    const done = v => { d.close(); if (back && back.isConnected) back.focus(); resolve(v); };
+    d.onclick = e => { const b = e.target.closest('.dlg-foot button'); if (b) done(b.value); else if (e.target === d) done('cancel'); };
+    d.oncancel = e => { e.preventDefault(); done('cancel'); };
+  });
+}
+const listHtml = arr => `<ul class="dlg-list">${arr.slice(0, 5).map(it => `<li>${esc(it.title)}${it.fav ? '（已收藏）' : ''}</li>`).join('')}
+  ${arr.length > 5 ? `<li>以及另外 ${arr.length - 5} 条</li>` : ''}</ul>`;
+
+// ---- 提示：撤销与失败重试；悬停或聚焦时暂停计时 ----
+let toastBack = null;
+function toast(msg, action, tone = '') {
+  const t = $('toast');
+  if (!t.contains(document.activeElement)) toastBack = document.activeElement;
+  t.className = `toast ${tone}`;
+  t.innerHTML = `${tone === 'err' ? svg('circle-alert') : ''}<span class="msg">${esc(msg)}</span>
+    ${action ? `<button class="btn" type="button" data-t="act"${action.op ? ` data-op="${action.op}"` : ''}>${action.label}</button>` : ''}
+    <button class="btn quiet icon" type="button" data-t="x" aria-label="关闭提示">${svg('x')}</button>`;
+  t.hidden = false;
+  t.onclick = e => { const b = e.target.closest('[data-t]'); if (!b) return; hideToast(); if (b.dataset.t === 'act') action.run(); };
+  armToast();
+}
+function armToast() {
+  clearTimeout(toastTimer);
+  if (!$('toast').classList.contains('err')) toastTimer = setTimeout(hideToast, 8000);
+}
+function hideToast() {
+  const t = $('toast');
+  clearTimeout(toastTimer);
+  // 焦点回到弹出提示前的控件；它已不存在或不可见时才回列表
+  if (t.contains(document.activeElement)) (toastBack && toastBack.isConnected && toastBack.offsetParent ? toastBack : list).focus();
+  t.hidden = true;
+}
+
+// ---- 更多菜单：锚定在按钮上方，空间不够时翻到下方 ----
+const MENU = [['del', 'trash', '删除此条…', '⌫'], ['multi', 'check-check', '多选删除…'], ['clear', 'trash', '清空历史…'], '-',
+  ['undo', 'undo-2', '撤销', '⌘Z'], ['redo', 'redo-2', '重做', '⇧⌘Z'], '-', ['keys', 'command', '键位帮助', '?'], ['sample', 'clipboard', '恢复示例']];
+function openMoreMenu() {
+  const m = $('menu'), btn = $('moreBtn');
+  hideTip();
+  if (!m.hidden) return closeMenu(true);
+  const off = { del: !current(), multi: !items.length, clear: !items.some(it => !it.fav), undo: !hist.undo.length, redo: !hist.redo.length };
+  m.innerHTML = MENU.map(x => (x === '-' ? '<hr>' : `<button type="button" role="menuitem" data-m="${x[0]}"${off[x[0]] ? ' disabled' : ''}
+    ${x[0] === 'del' || x[0] === 'clear' ? 'class="warn"' : ''}>${svg(x[1])}${x[2]}${x[3] ? `<kbd>${x[3]}</kbd>` : ''}</button>`)).join('');
+  m.hidden = false; btn.setAttribute('aria-expanded', 'true');
+  const r = btn.getBoundingClientRect();
+  let top = r.top - m.offsetHeight - 4;
+  if (top < 8) top = Math.min(r.bottom + 4, innerHeight - m.offsetHeight - 8);
+  m.style.top = `${Math.max(8, top)}px`;
+  m.style.left = `${Math.max(8, Math.min(r.right - m.offsetWidth, innerWidth - m.offsetWidth - 8))}px`;
+  m.querySelector('button:not(:disabled)').focus();
+}
+function closeMenu(refocus) {
+  const m = $('menu');
+  if (m.hidden) return;
+  m.hidden = true; $('moreBtn').setAttribute('aria-expanded', 'false');
+  if (refocus) $('moreBtn').focus();
+}
+function runMenu(act) {
+  closeMenu(true);
+  ({ del: deleteCurrent, multi: () => setMulti(true), clear: clearHistory, undo, redo, keys: showKeys, sample: restoreSample })[act]();
+}
+
+// ---- 删除：一律确认，取消为默认；执行失败可重试；成功后可撤销 ----
+async function removeItems(arr, what) {
+  if (!arr.length) return;
+  const v = await ask({ title: `删除${what}？`, body: `<p>将从历史中删除以下 ${arr.length} 条：</p>${listHtml(arr)}<p class="help">删除后可在 8 秒内撤销，或用 ⌘Z / 更多 › 撤销（原型）。</p>`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: `删除 ${arr.length} 条`, value: 'ok', cls: 'danger' }] });
+  if (v !== 'ok') return say('已取消删除，记录未改变');
+  doRemove(arr.map(it => it.id));
+}
+// 删除、清理、缩短期限/容量都走这里：模拟失败时条目与设置一律不变；成功后一次撤销同时还原条目与策略
+function applyRemoval({ label, ids, pol = null, done = `已${label}`, notify = toast, retry }) {
+  if (flags.delFail) {
+    flags.delFail = false; syncSettings();
+    notify(`${label}失败（模拟）：${ids.length} 条记录${pol ? '与保留设置' : ''}均未改变。`, { label: '重试', run: retry }, 'err');
+    return false;
+  }
+  const op = commit(label, () => { items = items.filter(it => !ids.includes(it.id)); if (pol) Object.assign(S, pol); });
+  if (state.multi) setMulti(false);
+  notify(done, { label: '撤销', run: () => undoOp(op), op });
+  return true;
+}
+function doRemove(ids) {
+  ids = ids.filter(id => items.some(it => it.id === id));
+  if (ids.length) applyRemoval({ label: `删除 ${ids.length} 条`, ids, retry: () => doRemove(ids) });
+}
+function deleteCurrent() {
+  if (state.multi) return removeItems(items.filter(it => state.picked.has(it.id)), `选中的 ${state.picked.size} 条`);
+  const it = current();
+  if (it) removeItems([it], `「${short(it.title)}」`);
+}
+async function clearHistory() {
+  const drop = items.filter(it => !it.fav), keep = items.length - drop.length;
+  if (!drop.length) return say('没有未收藏的条目可清空');
+  const v = await ask({ title: '清空历史？', body: `<p>将删除 <b>${drop.length}</b> 条未收藏条目，保留 <b>${keep}</b> 条收藏。</p>${listHtml(drop)}`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: `删除 ${drop.length} 条，保留收藏`, value: 'ok', cls: 'danger' }] });
+  if (v !== 'ok') return say('已取消清空，记录未改变');
+  doRemove(drop.map(it => it.id));
+}
+function setMulti(on) {
+  state.multi = on;
+  state.picked = new Set(on && state.sel ? [state.sel] : []);
+  render();
+  // 设置里发起的删除/清理也会退出多选：工作区此时隐藏，焦点留给发起控件（ask 已还原），不抢到隐藏列表
+  if (!isSettings()) list.focus({ preventScroll: true });
+}
+function togglePick(id) {
+  state.sel = id;
+  state.picked.has(id) ? state.picked.delete(id) : state.picked.add(id);
+  render();
+}
+function restoreSample() {
+  commit('恢复示例', () => { items = SAMPLE.map(it => ({ ...it })); });
+  say('已恢复示例数据，⌘Z 可撤销');
+}
+
+// ---- 放大预览与键位帮助 ----
+function zoom() {
+  const it = current();
+  if (it) ask({ title: it.title, body: `<div class="pv-body" tabindex="0" aria-label="放大预览">${$('pvBody').innerHTML}</div>`,
+    buttons: [{ label: '关闭', value: 'cancel' }], cls: 'zoom' });
+}
+function showKeys() {
+  const K = [['↑ ↓ · PgUp PgDn', '移动选中'], ['⌘↑ ⌘↓', '第一条 / 最后一条'], ['↵', '粘贴到目标应用（模拟）'], ['⌘↵', '复制（模拟）'],
+    ['Space', '放大预览；多选时勾选'], ['⌘F', '搜索'], ['⌘D', '收藏 / 取消收藏'], ['⌫', '删除选中（需确认）'],
+    ['⌘Z · ⇧⌘Z', '撤销 / 重做；在输入框里保留文字撤销'], ['Esc', '逐级：菜单 → 进行中的输出 → 多选 → 返回列表 → 清除搜索 → 重置筛选 → 关闭窗口'],
+    ['?', '本帮助'], ['⌘,', 'OneShot 设置（设置内 ⌘F 搜索设置）'], [S.hk.open ? S.hk.open.label : '未设置', '打开 / 关闭剪贴板（全局，模拟）']];
+  ask({ title: '键位（建议值，待确认）', body: `<dl class="keys">${K.map(([k, d]) => `<dt>${esc(k)}</dt><dd>${d}</dd>`).join('')}</dl>
+    <p class="help">组词中的 ↵ 和方向键交给输入法，不触发输出或导航。</p>`, buttons: [{ label: '关闭', value: 'cancel' }], cls: 'wide' });
+}
+
+// ---- 设置中心（全部模拟）：分类导航 + 设置搜索 + 当前值；同步到评审情景控件 ----
+const darkMQ = matchMedia('(prefers-color-scheme: dark)'), reduceMQ = matchMedia('(prefers-reduced-motion: reduce)');
+const setRoot = $('setRoot'), setQ = $('setQ'), narrowSet = matchMedia('(max-width: 600px)');
+const SECTIONS = { general: '通用', appearance: '外观与动效', shortcuts: '全局快捷键', privacy: '隐私与数据', clipboard: '模块 › 剪贴板' };
+const SEC_ICON = { general: 'settings', appearance: 'sun', shortcuts: 'command', privacy: 'shield', clipboard: 'clipboard' };
+const PERM = { 'not-requested': '未请求', denied: '已拒绝', granted: '已允许' };
+const setUI = { sec: 'general', composing: false }; // sec：会话内记住上次分类
+// setOpener：从框架外（评审抽屉）打开时记下来源；lastWork：剪贴板内最后的焦点，离开设置时还原
+let setOpener = null, lastWork = null;
+const navBtns = () => [...setRoot.querySelectorAll('.nav-btn')];
+const isSettings = () => app.dataset.route === 'settings';
+function setRoute(r) {
+  app.dataset.route = r;
+  $('clipRoute').hidden = r !== 'clipboard'; setRoot.hidden = r !== 'settings';
+  document.querySelectorAll('.rail [data-route]').forEach(b => {
+    if (b.dataset.route === r) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+  });
+}
+
+// 再次打开回到上次分类并聚焦它的导航项；从别处跳入时可直接定位到某个控件
+function openSettings(opener = document.activeElement, focusId = '') {
+  closeMenu(); hideTip();
+  if (!isSettings()) {
+    if (pending) cancelOutput(); // 离开剪贴板上下文：进行中的输出取消，不在设置里补写成功
+    setOpener = app.contains(opener) ? null : opener;
+    syncSettings(); setRoute('settings');
+  }
+  if (focusId) locate(focusId);
+  else showSection(setUI.sec, { focusNav: true });
+}
+// 离开设置：草稿明确保留并告知；恢复剪贴板的功能、查询、选中项与焦点
+function closeSettings() {
+  if (!isSettings()) return;
+  stopRecording(); hideTip();
+  setRoute('clipboard');
+  render();
+  const n = draftCount();
+  if (n) say(`有 ${n} 个快捷键草稿未保存，已保留在 设置 › 全局快捷键；保存前仍使用原快捷键。`);
+  const back = [setOpener, lastWork, list, q].find(el => el && el.isConnected && el.offsetParent);
+  setOpener = null;
+  back.focus({ preventScroll: true });
+}
+function showSection(sec, { focusNav = false } = {}) {
+  cancelRecording(); // 录制行可能随分类隐藏
+  setUI.sec = sec;
+  setQ.value = ''; $('setQClear').hidden = true;
+  setRoot.querySelectorAll('.panel[data-sec]').forEach(p => { p.hidden = p.dataset.sec !== sec; });
+  $('p-hits').hidden = true;
+  navBtns().forEach(b => {
+    const on = b.dataset.sec === sec;
+    if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    b.tabIndex = on ? 0 : -1;
+  });
+  $('setMain').scrollTop = 0;
+  if (focusNav) navBtns().find(b => b.dataset.sec === sec).focus();
+}
+// 定位到具体控件：切到所在分类、滚动到位、聚焦第一个可用控件，并短暂高亮整行
+function locate(fieldId) {
+  const f = $(fieldId);
+  if (!f) return;
+  showSection(f.closest('.panel[data-sec]').dataset.sec);
+  const ctl = f.querySelector('input:checked:not(:disabled), select:not(:disabled), input:not(:disabled), button:not(:disabled):not([hidden])');
+  if (ctl) ctl.focus({ preventScroll: true });
+  else { f.tabIndex = -1; f.focus({ preventScroll: true }); }
+  f.scrollIntoView({ block: 'center' });
+  f.classList.remove('is-hit'); void f.offsetWidth; f.classList.add('is-hit');
+  setTimeout(() => f.classList.remove('is-hit'), 1600);
+}
+
+// 设置搜索：标签、说明、路径、分类名与中英文同义词（data-s）都参与匹配；多个词需同时命中
+// 路径：分组可用 data-path 声明它在模块功能里的位置（如 剪贴板 › 历史），否则用分类名
+const norm = s => s.toLowerCase().replace(/\s+/g, ' ');
+const INDEX = [...setRoot.querySelectorAll('.field[data-s]')].map(f => {
+  const sec = f.closest('.panel[data-sec]').dataset.sec, g = f.closest('.group'), group = g.querySelector('legend').textContent;
+  const path = `${g.dataset.path || SECTIONS[sec]} › ${group}`;
+  const label = f.querySelector('.field-label').textContent.trim(), desc = (f.querySelector('.field-desc:not(.font-sample)') || {}).textContent || '';
+  return { id: f.id, sec, path, label, desc: desc.trim(), hay: norm(`${label} ${desc} ${path} ${SECTIONS[sec]} ${f.dataset.s}`) };
+});
+// 词内同义：中文常不加空格（“保留时间”），整词 alias 不够；查询词里出现组内任一词时，换成同组其他词再匹配
+const SYN = [['期限', '时间', '时长'], ['策略', '规则', 'policy', 'rule']];
+const variants = t => SYN.reduce((vs, grp) => vs.flatMap(v => {
+  const w = grp.find(x => v.includes(x));
+  return w ? grp.map(x => v.replace(w, x)) : [v];
+}), [t]);
+const reEsc = t => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const markUp = (s, terms) => s.split(new RegExp(`(${terms.map(reEsc).join('|')})`, 'gi')).map((p, i) => (i % 2 ? `<mark>${esc(p)}</mark>` : esc(p))).join('');
+function runSearch() {
+  const raw = setQ.value.trim(), k = norm(raw);
+  cancelRecording(); // 搜索结果替换分类面板，录制行随之隐藏
+  $('setQClear').hidden = !setQ.value;
+  if (!k) return showSection(setUI.sec); // 清空搜索：恢复原分类
+  const terms = k.split(' ').map(variants), hits = INDEX.filter(x => terms.every(vs => vs.some(v => x.hay.includes(v))));
+  const marks = terms.flat();
+  setRoot.querySelectorAll('.panel[data-sec]').forEach(p => { p.hidden = true; });
+  $('p-hits').hidden = false;
+  navBtns().forEach(b => b.removeAttribute('aria-current'));
+  $('hitsCount').textContent = hits.length ? `${hits.length} 项匹配「${raw}」` : `没有匹配「${raw}」的设置`;
+  $('hits').innerHTML = hits.length
+    ? hits.map(x => `<button class="hit-row" type="button" data-hit="${x.id}">${svg(SEC_ICON[x.sec])}<span>
+        <span class="hit-path">${esc(x.path)}</span><span class="hit-label">${markUp(x.label, marks)}</span>
+        ${x.desc ? `<span class="hit-desc">${markUp(x.desc, marks)}</span>` : ''}</span></button>`).join('')
+    : `<div class="empty">${svg('search', 'md')}<p>换个说法试试，例如“深色”“快捷键”“保留时间”“权限”“theme”。</p>
+        <div class="acts"><button class="btn" type="button" data-hit-clear>清除搜索</button></div></div>`;
+}
+function pickHit(id) { setQ.value = ''; locate(id); }
+function clearSetSearch() { setQ.value = ''; runSearch(); setQ.focus(); }
+
+// 设置页底部状态行：设置内操作的结果、撤销与重试（主窗口的 toast 被模态设置遮住，不在这里用）
+function setNote(msg, action = null, tone = '') {
+  const s = $('setStatus'), b = $('setStatusAct');
+  s.textContent = msg; s.className = `set-status ${tone}`;
+  b.hidden = !action;
+  b.dataset.op = (action && action.op) || ''; // 绑定的操作 ID：撤销栈变化后由 refreshUndoActs 判断是否过期
+  if (action) {
+    b.textContent = action.label;
+    b.onclick = () => { b.hidden = true; const r = action.run(); if (typeof r === 'string' && r) setNote(r); };
+  }
+}
+function setMenubar(on) {
+  S.menubar = on;
+  let msg = on ? '已显示菜单栏图标（模拟）。' : '已隐藏菜单栏图标（模拟）。';
+  if (!on && S.closeAct === 'menubar') { S.closeAct = 'dock'; msg += '“关闭窗口后”已改为“保留在程序坞”，因为菜单栏图标已关闭。'; }
+  syncSettings(); setNote(msg);
+}
+function setModule(on) {
+  S.clipOn = on;
+  if (!on) { if (pending) cancelOutput(); stopRecording(); }
+  applyPrefs(); render();
+  setNote(on ? '剪贴板模块已启用（模拟）。' : '剪贴板模块已停用（模拟）：不记录新内容，唤起快捷键与复制/粘贴停用；已有记录保留。');
+}
+function permAction() {
+  if (S.perm === 'not-requested') return askPermission().then(v => setNote(v === 'cancel' ? '已取消，权限仍为“未请求”。' : `模拟请求完成：${PERM[v]}。`));
+  setNote(`已重新检查（模拟）：仍为“${PERM[S.perm]}”。真实应用会读取系统状态；原型请在评审抽屉里切换原始状态。`);
+}
+// 体积为模拟估算：文字按字符数，图片按样例标注的大小
+const storageKB = () => Math.round(items.reduce((n, it) => n + (it.type === 'image' ? +((it.size.match(/(\d+) KB/) || [0, 0])[1]) : it.body.length * 2 / 1024), 0));
+
+function syncSettings() {
+  const check = (name, v) => setRoot.querySelectorAll(`input[name="${name}"]`).forEach(i => { i.checked = Array.isArray(v) ? v.includes(i.value) : i.value === v; });
+  check('theme', S.theme); check('motion', S.motion); check('textSize', S.text); check('density', S.density);
+  check('closeAct', S.closeAct); check('excl', S.excl); check('ctype', S.types);
+  $('fontSel').value = S.font; $('monoSel').value = S.mono;
+  $('menubarSw').checked = S.menubar; $('loginSw').checked = S.login; $('clipSw').checked = S.clipOn;
+  setRoot.querySelector('input[name="closeAct"][value="menubar"]').disabled = !S.menubar;
+  $('closeDesc').textContent = S.menubar ? '剪贴板窗口关闭后，OneShot 停在哪里。' : '“保留在菜单栏”需要先开启菜单栏图标。';
+  $('closeHelp').textContent = S.closeAct === 'quit' ? '退出后全局快捷键不再响应，需要重新启动 OneShot。' : '';
+  const label = { full: '完整', reduced: '减少', off: '关闭' }[S.motion];
+  $('motionHelp').textContent = `当前：${label}${reduceMQ.matches && S.motion === 'full' ? '；系统已开启“减少动态”，实际按“减少”执行' : ''}`;
+  $('clipBody').disabled = !S.clipOn; $('clipOffNote').hidden = S.clipOn;
+  $('clipBadge').textContent = S.clipOn ? '' : '已停用';
+  $('retSel').value = S.ret; $('capSel').value = S.cap;
+  const fav = items.filter(it => it.fav).length;
+  $('histHelp').textContent = `当前 ${items.length} 条：未收藏 ${items.length - fav} 条计入容量，收藏 ${fav} 条不计入。`;
+  $('recNow').innerHTML = !S.clipOn ? '不记录' : S.paused ? svg('pause') + '已暂停' : '<i class="dot" aria-hidden="true"></i>记录中';
+  $('pauseBtn').innerHTML = S.paused ? svg('play') + '恢复记录' : svg('pause') + '暂停记录';
+  const P = { 'not-requested': ['circle-alert', '模拟请求…', '首次粘贴时会先说明用途再请求（建议）。'],
+    denied: ['circle-alert', '模拟重新检查', '粘贴不可用：可先复制，再在目标应用中按 ⌘V。真实应用会引导到系统设置，原型不会打开。'],
+    granted: ['check', '模拟重新检查', '粘贴可以回到目标应用（模拟）。'] }[S.perm];
+  $('permState').innerHTML = svg(P[0]) + PERM[S.perm]; $('permState').className = `state${S.perm === 'denied' ? ' err' : ''}`;
+  $('permAct').textContent = P[1]; $('permHelp').textContent = P[2];
+  $('storeDesc').textContent = `目前只有剪贴板模块存储数据：${items.length} 条记录，其中收藏 ${fav} 条。体积为模拟估算，不读取真实磁盘。`;
+  $('storeVal').textContent = `约 ${storageKB()} KB`;
+  renderClean(); renderHk();
+  $('scnPerm').value = S.perm; $('scnLat').value = S.lat; $('scnPause').checked = S.paused;
+  $('scnConv').checked = flags.conv; $('scnFocus').checked = flags.focus; $('scnDelFail').checked = flags.delFail; $('scnHkFail').checked = flags.hkFail;
+  $('sysMotion').textContent = reduceMQ.matches ? '已开启（按减少执行）' : '未开启';
+}
+// 缩短期限或降低容量：先预告会删除哪些条目，确认后才应用。收藏不计入容量，也不会被清理
+function overflow(ret, cap) {
+  const loose = items.filter(it => !it.fav), old = loose.filter(it => ageDays(it) > ret);
+  const rest = loose.filter(it => !old.includes(it)), extra = rest.length - cap;
+  return extra > 0 ? [...old, ...rest.slice(-extra)] : old;
+}
+// 取消、模拟失败：条目与设置都不变（选择框回到原值）；成功：一次撤销同时还原策略与这次清理的条目
+async function setHistory(kind, val) {
+  const pol = { ...policy(), [kind]: val }, drop = overflow(pol.ret, pol.cap);
+  const what = kind === 'ret' ? `保留期限改为 ${val} 天` : `容量上限改为 ${val} 条`;
+  if (!drop.length) {
+    const op = commit(what, () => Object.assign(S, pol));
+    return setNote(`已应用：${what}，没有条目受影响。`, { label: '撤销', run: () => undoOp(op), op });
+  }
+  const v = await ask({ title: `${what}？`, body: `<p>应用后会删除 <b>${drop.length}</b> 条未收藏条目；收藏不计入容量，全部保留：</p>${listHtml(drop)}
+    <p class="help">撤销会同时恢复这些条目和原设置（${S.ret} 天 / ${S.cap} 条）。真实删除效果待隐私设计确认。</p>`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: `删除 ${drop.length} 条并应用`, value: 'ok', cls: 'danger' }] });
+  if (v !== 'ok') { syncSettings(); return setNote('已取消，设置与记录均未改变。'); }
+  applyRemoval({ label: what, ids: drop.map(it => it.id), pol, done: `已应用：${what}，删除 ${drop.length} 条（模拟）。`,
+    notify: setNote, retry: () => setHistory(kind, val) });
+  syncSettings();
+}
+// 隐私与数据 › 清理：范围 + 是否包含收藏；数量实时预览，确认默认取消
+function cleanTargets() {
+  const all = $('cleanScope').value === 'all', withFav = $('cleanFav').checked;
+  return items.filter(it => (withFav || !it.fav) && (all || ageDays(it) > 7));
+}
+function renderClean() {
+  const drop = cleanTargets(), favKept = items.filter(it => it.fav && !drop.includes(it)).length;
+  $('cleanBtn').textContent = drop.length ? `清理 ${drop.length} 条…` : '清理…';
+  $('cleanBtn').disabled = !drop.length;
+  $('cleanHelp').textContent = drop.length
+    ? `将删除 ${drop.length} 条${$('cleanFav').checked ? '（含收藏）' : ''}，保留 ${items.length - drop.length} 条${favKept ? `，其中收藏 ${favKept} 条受保护` : ''}。`
+    : '这个范围内没有记录，无需清理。';
+}
+async function cleanData() {
+  const drop = cleanTargets();
+  if (!drop.length) return;
+  const favN = drop.filter(it => it.fav).length;
+  const v = await ask({ title: '清理剪贴板记录？', body: `<p>将删除 <b>${drop.length}</b> 条${favN ? `，其中 <b>${favN}</b> 条是收藏` : '，收藏全部保留'}：</p>${listHtml(drop)}
+    <p class="help">可在设置底部撤销（模拟）。原型不删除任何真实文件。</p>`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: `删除 ${drop.length} 条`, value: 'ok', cls: 'danger' }] });
+  if (v !== 'ok') return setNote('已取消清理，记录未改变。');
+  applyRemoval({ label: `清理 ${drop.length} 条记录`, ids: drop.map(it => it.id), notify: setNote, retry: cleanData });
+  // 清理后范围可能为空、按钮停用：焦点留在同一行的范围选择上，不掉到页面外
+  if ($('cleanBtn').disabled) $('cleanScope').focus();
+}
+// ---- 全局快捷键：当前值与待保存草稿分开显示 ----
+// 保存时冻结提交值并禁止录制（不再在 timeout 后读取可变草稿）；失败保留旧值与草稿，可重试；
+// 关闭设置或切换分类时草稿保留，直到保存、放弃或恢复默认
+const HK_CMDS = { open: '打开 / 关闭剪贴板', pause: '暂停 / 恢复记录' };
+const hk = { draft: { open: null, pause: null }, saving: { open: null, pause: null }, failed: { open: false, pause: false }, rec: null };
+const hkLabel = cmd => (S.hk[cmd] ? S.hk[cmd].label : '未设置');
+const draftCount = () => Object.values(hk.draft).filter(Boolean).length;
+// 冲突表：系统常用组合（按标签精确匹配）
+const CONFLICT = { '⌘C': '系统“拷贝”', '⌘V': '系统“粘贴”', '⌘X': '系统“剪切”', '⌘Z': '系统“撤销”', '⌘A': '系统“全选”', '⌘Q': '系统“退出”',
+  '⌘W': '系统“关闭窗口”', '⌘H': '系统“隐藏应用”', '⌘M': '系统“最小化”', '⌘`': '系统“切换同一应用的窗口”', '⌃⌘Q': '系统“锁定屏幕”',
+  '⌘Space': '“聚焦搜索”', '⌃Space': '“切换输入法”', '⌃⌘Space': '“表情与符号”', '⇧⌘3': '系统截屏', '⇧⌘4': '系统截屏', '⇧⌘5': '截屏与录制', '⌘⇥': '切换应用' };
+// OneShot 自己的修饰键命令：与文末全局 keydown 的匹配规则一一对应（改 handler 时同步改这里）。
+// 规则：⌘ 与 ⌃ 等价（handler 用 metaKey || ctrlKey）；ctrl:true 只认 ⌃；未写 shift 的不论 ⇧；
+// 字母和逗号加 ⌥ 会改变 e.key，handler 不响应；↵ / ↑↓ 加 ⌥ 仍响应（alt:true）
+const LOCAL_KEYS = [
+  { code: ['Comma'], name: '“设置”' }, { code: ['KeyZ'], shift: false, name: '“撤销”' }, { code: ['KeyZ'], shift: true, name: '“重做”' },
+  { code: ['KeyY'], ctrl: true, name: '“重做”（备用组合）' }, { code: ['KeyF'], name: '“搜索”' }, { code: ['KeyD'], name: '“收藏”' },
+  { code: ['Enter', 'NumpadEnter'], alt: true, name: '剪贴板“复制”' }, { code: ['ArrowUp'], alt: true, name: '“第一条”' }, { code: ['ArrowDown'], alt: true, name: '“最后一条”' }];
+const localClash = c => LOCAL_KEYS.find(x => x.code.includes(c.code) && (x.ctrl ? c.ctrl : c.meta || c.ctrl)
+  && (x.shift === undefined || x.shift === c.shift) && (x.alt || !c.alt));
+const KEYNAME = { Enter: '↵', NumpadEnter: '↵', ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→', Backspace: '⌫', Delete: '⌦', Tab: '⇥',
+  Space: 'Space', Comma: ',', Period: '.', Slash: '/', Backquote: '`', Minus: '-', Equal: '=', BracketLeft: '[', BracketRight: ']', Semicolon: ';', Quote: "'", Backslash: '\\' };
+const hkMsg = (cmd, msg, tone = '') => { const h = $(`hkHelp-${cmd}`); h.textContent = msg; h.className = `help ${tone}`; };
+function renderHk() {
+  Object.keys(HK_CMDS).forEach(cmd => {
+    const d = hk.draft[cmd], saving = hk.saving[cmd], rec = hk.rec === cmd, f = $(`f-hk-${cmd}`);
+    $(`hkVals-${cmd}`).innerHTML = `<span class="hk-val">当前<kbd>${esc(hkLabel(cmd))}</kbd></span>`
+      + (d ? `<span class="hk-val draft">待保存<kbd>${esc(d.label)}</kbd></span>` : '');
+    const rb = f.querySelector('[data-hk="rec"]'), sb = f.querySelector('[data-hk="save"]'), db = f.querySelector('[data-hk="drop"]');
+    rb.textContent = rec ? '按下组合键…' : d ? '重新录制' : '录制';
+    rb.setAttribute('aria-pressed', rec);
+    rb.disabled = !!saving || (!!hk.rec && !rec);
+    sb.hidden = !d;
+    // 保存中用 aria-disabled 而不是 disabled，焦点不会丢到 body
+    sb.setAttribute('aria-disabled', !!saving);
+    if (saving) { sb.innerHTML = svg('loader', 'spin') + '保存中'; sb.dataset.state = 'loading'; }
+    else { sb.textContent = hk.failed[cmd] ? '重试保存' : '保存'; delete sb.dataset.state; }
+    db.hidden = !d; db.disabled = !!saving;
+  });
+  const n = draftCount(), nb = setRoot.querySelector('.nav-btn[data-sec="shortcuts"]'), name = n ? `全局快捷键（${n} 项未保存）` : '全局快捷键';
+  $('hkBadge').hidden = !n; $('hkBadge').textContent = n ? `${n} 项未保存` : '';
+  nb.classList.toggle('has-draft', !!n); nb.setAttribute('aria-label', name); nb.dataset.tip = name;
+  const dirty = Object.keys(HK_CMDS).some(c => hk.draft[c] || hkLabel(c) !== (HK_DEFAULT[c] ? HK_DEFAULT[c].label : '未设置'));
+  const busy = Object.values(hk.saving).some(Boolean);
+  $('hkReset').disabled = !dirty || busy;
+  $('hkResetHelp').textContent = busy ? '有快捷键正在保存，完成后才能恢复默认。' : dirty ? '' : '已是默认值。';
+}
+function hkAction(act, cmd) {
+  if (hk.saving[cmd]) return; // 保存进行中：整行冻结
+  if (act === 'rec') {
+    if (hk.rec === cmd) { stopRecording(); return hkMsg(cmd, `已取消录制，仍使用 ${hkLabel(cmd)}。`); }
+    return startRecording(cmd);
+  }
+  if (act === 'save') return saveHotkey(cmd);
+  hk.draft[cmd] = null; hk.failed[cmd] = false; renderHk();
+  hkMsg(cmd, `已放弃草稿，仍使用 ${hkLabel(cmd)}。`);
+  $(`f-hk-${cmd}`).querySelector('[data-hk="rec"]').focus();
+}
+const recBtn = cmd => $(`f-hk-${cmd}`).querySelector('[data-hk="rec"]');
+// 录制只捕获落在录制按钮上的按键；显式聚焦，避免点击不聚焦按钮的浏览器把按键交给别处
+function startRecording(cmd) { hk.rec = cmd; renderHk(); recBtn(cmd).focus(); hkMsg(cmd, '正在录制：按下新的组合键。Esc 或 Tab 取消。'); }
+function stopRecording() { if (!hk.rec) return; hk.rec = null; renderHk(); }
+// 离开录制位置（切分类、设置搜索、焦点移走后按键）：结束录制，已有草稿保留，不捕获这次按键
+function cancelRecording() {
+  const cmd = hk.rec;
+  if (!cmd) return;
+  stopRecording();
+  hkMsg(cmd, hk.draft[cmd] ? `已取消录制，草稿 ${hk.draft[cmd].label} 保留，仍使用 ${hkLabel(cmd)}。` : `已取消录制，仍使用 ${hkLabel(cmd)}。`);
+}
+function recordKey(e) {
+  const cmd = hk.rec;
+  if (e.isComposing || e.keyCode === 229) return;
+  // 不带修饰键的 Tab：取消录制并照常移动焦点，键盘用户不会被困住
+  if (e.key === 'Tab' && !e.metaKey && !e.ctrlKey && !e.altKey) { stopRecording(); return hkMsg(cmd, `已取消录制，仍使用 ${hkLabel(cmd)}。`); }
+  e.preventDefault(); e.stopPropagation();
+  if (e.key === 'Escape') { stopRecording(); return hkMsg(cmd, `已取消录制，仍使用 ${hkLabel(cmd)}。`); }
+  if (['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) return;
+  const key = KEYNAME[e.code] || (e.code.startsWith('Key') ? e.code.slice(3) : e.code.startsWith('Digit') ? e.code.slice(5) : e.key.length === 1 ? e.key.toUpperCase() : e.key);
+  const combo = { meta: e.metaKey, alt: e.altKey, ctrl: e.ctrlKey, shift: e.shiftKey, code: e.code,
+    label: `${e.ctrlKey ? '⌃' : ''}${e.altKey ? '⌥' : ''}${e.shiftKey ? '⇧' : ''}${e.metaKey ? '⌘' : ''}${key}` };
+  stopRecording();
+  const keep = `仍使用 ${hkLabel(cmd)}`;
+  if (!e.metaKey && !e.ctrlKey && !e.altKey) return hkMsg(cmd, `「${combo.label}」缺少修饰键：至少包含 ⌘、⌃ 或 ⌥。${keep}。`, 'err');
+  // 两个全局快捷键之间：对方的当前值、草稿与正在保存的值都算占用，按实际按键（code + 修饰键）比较
+  const same = x => x && x.code === combo.code && ['meta', 'ctrl', 'alt', 'shift'].every(m => x[m] === combo[m]);
+  const other = Object.keys(HK_CMDS).find(c => c !== cmd && [S.hk[c], hk.draft[c], hk.saving[c]].some(same));
+  const local = localClash(combo);
+  const clash = CONFLICT[combo.label] || (local && `OneShot${local.name}`) || (other && `OneShot“${HK_CMDS[other]}”`);
+  if (clash) return hkMsg(cmd, `「${combo.label}」与${clash}冲突，未采用；${keep}。请换一个组合。`, 'err');
+  if (S.hk[cmd] && S.hk[cmd].label === combo.label) { hk.draft[cmd] = null; renderHk(); return hkMsg(cmd, '与当前组合相同，无需保存。'); }
+  hk.draft[cmd] = combo; hk.failed[cmd] = false; renderHk();
+  hkMsg(cmd, `待保存：${combo.label}。保存前仍使用 ${hkLabel(cmd)}。`);
+  $(`f-hk-${cmd}`).querySelector('[data-hk="save"]').focus();
+}
+function saveHotkey(cmd) {
+  const combo = hk.draft[cmd]; // 冻结提交值
+  if (!combo || hk.saving[cmd]) return;
+  hk.saving[cmd] = combo; renderHk();
+  hkMsg(cmd, `正在保存 ${combo.label}…`);
+  setTimeout(() => {
+    hk.saving[cmd] = null;
+    const f = $(`f-hk-${cmd}`), hadFocus = f.contains(document.activeElement);
+    if (flags.hkFail) {
+      flags.hkFail = false; hk.failed[cmd] = true; syncSettings();
+      return hkMsg(cmd, `保存失败（模拟）：未能注册 ${combo.label}，仍使用 ${hkLabel(cmd)}。草稿已保留，可重试。`, 'err');
+    }
+    S.hk[cmd] = combo; hk.draft[cmd] = null; hk.failed[cmd] = false;
+    syncSettings();
+    if (hadFocus) f.querySelector('[data-hk="rec"]').focus();
+    hkMsg(cmd, `已保存并立即生效（模拟）：${combo.label}。`, 'ok');
+  }, 600);
+}
+// 恢复默认：先列出旧值 → 新值（含将放弃的草稿），范围只限全局快捷键；默认焦点在“取消”
+async function resetHotkeys() {
+  const rows = Object.keys(HK_CMDS).filter(c => hk.draft[c] || hkLabel(c) !== (HK_DEFAULT[c] ? HK_DEFAULT[c].label : '未设置'))
+    .map(c => `<li>${HK_CMDS[c]}：${esc(hkLabel(c))}${hk.draft[c] ? `（草稿 ${esc(hk.draft[c].label)} 将放弃）` : ''} → ${esc(HK_DEFAULT[c] ? HK_DEFAULT[c].label : '未设置')}</li>`);
+  if (!rows.length) return;
+  stopRecording();
+  const v = await ask({ title: '恢复默认全局快捷键？', body: `<p>只影响以下全局快捷键；外观、隐私和模块设置不变。</p><ul class="dlg-list">${rows.join('')}</ul>`,
+    buttons: [{ label: '取消', value: 'cancel' }, { label: '恢复默认', value: 'ok' }] });
+  if (v !== 'ok') return setNote('已取消，快捷键与草稿都未改变。');
+  if (Object.values(hk.saving).some(Boolean)) return setNote('有快捷键正在保存，未恢复默认；请稍后再试。', null, 'err');
+  if (flags.hkFail) {
+    flags.hkFail = false; syncSettings();
+    return setNote('恢复默认失败（模拟）：快捷键与草稿都未改变。', { label: '重试', run: resetHotkeys }, 'err');
+  }
+  S.hk = { ...HK_DEFAULT };
+  Object.keys(HK_CMDS).forEach(c => { hk.draft[c] = null; hk.failed[c] = false; hkMsg(c, ''); });
+  syncSettings(); setNote('已恢复默认全局快捷键（模拟）。');
+}
+const comboHit = (e, c) => !!c && e.code === c.code && e.metaKey === c.meta && e.altKey === c.alt && e.ctrlKey === c.ctrl && e.shiftKey === c.shift;
+const matchHotkey = e => hotkeyLive() && comboHit(e, S.hk.open);
+
+// ---- tooltip：悬停 800ms、键盘聚焦立即出现、Esc 关闭；指针可移到提示上；顶层显示（盖过设置弹窗） ----
+const tip = $('tip'), usePopover = typeof tip.showPopover === 'function';
+if (usePopover) { tip.popover = 'manual'; tip.hidden = false; }
+let tipTimer = 0, tipHideTimer = 0, tipFor = null;
+// 导航名称可见时不重复提示；窄窗口收成图标栏后才显示
+const tipWanted = el => !(el.classList.contains('nav-btn') && !narrowSet.matches);
+function showTip(el) {
+  if (!el.isConnected || !el.offsetParent || !tipWanted(el)) return;
+  clearTimeout(tipHideTimer);
+  tipFor = el; tip.innerHTML = el.dataset.tip;
+  if (usePopover) { if (!tip.matches(':popover-open')) tip.showPopover(); }
+  else { (el.closest('dialog[open]') || document.body).append(tip); tip.hidden = false; }
+  const r = el.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+  let top, left;
+  if (el.classList.contains('nav-btn')) { top = r.top + (r.height - th) / 2; left = r.right + 6; }
+  else {
+    top = r.bottom + 6; if (top + th > innerHeight - 8) top = r.top - th - 6;
+    left = r.left + r.width / 2 - tw / 2;
+  }
+  tip.style.top = `${Math.max(8, top)}px`;
+  tip.style.left = `${Math.max(8, Math.min(left, innerWidth - tw - 8))}px`;
+}
+function hideTip() {
+  clearTimeout(tipTimer); clearTimeout(tipHideTimer); tipFor = null;
+  if (usePopover) { if (tip.matches(':popover-open')) tip.hidePopover(); } else tip.hidden = true;
+}
+// 静态说明：提示文字不同于可访问名称时，挂成 aria-describedby，读屏不依赖悬停
+document.querySelectorAll('[data-tip]').forEach((el, i) => {
+  const text = el.dataset.tip.replace(/<[^>]+>/g, '');
+  if (text === el.getAttribute('aria-label')) return;
+  const d = document.createElement('span');
+  d.id = `tipd-${i}`; d.textContent = text; $('tipDescs').append(d);
+  el.setAttribute('aria-describedby', [el.getAttribute('aria-describedby'), d.id].filter(Boolean).join(' '));
+});
+
+// ---- 模拟情景：真实走捕获分支 ----
+const CAP = {
+  text: { type: 'text', title: '会议纪要：权限请求时机', body: '首次粘贴时再请求辅助功能权限，并先说明用途；拒绝后提供复制替代。' },
+  code: { type: 'code', lang: 'Swift', title: 'frontmostApplication', body: 'let target = NSWorkspace.shared.frontmostApplication\ntarget?.activate()' },
+  link: { type: 'link', title: 'Human Interface Guidelines', body: 'developer.apple.com/design/human-interface-guidelines' },
+  image: { type: 'image', title: '截图 2026-10-04.png', img: 'sketch', size: '1440 × 900 · 188 KB', body: '' },
+};
+const scnSay = msg => { $('scnStatus').textContent = msg; };
+function capture(kind) {
+  const from = $('scnApp').value;
+  if (quitted) { scnSay('已模拟：OneShot 已退出。'); return toast('未收录：OneShot 已退出（模拟），重新启动后才会记录。'); }
+  if (!S.clipOn) { scnSay('已模拟：剪贴板模块已停用。'); return toast('未收录：剪贴板模块已停用（设置 › 模块 › 剪贴板）。'); }
+  if (kind === 'readfail') {
+    scnSay('已模拟：读取剪贴板失败。');
+    return toast('读取剪贴板失败（模拟），这次复制未收录。', { label: '重试', run: () => capture('text') }, 'err');
+  }
+  if (S.paused) { scnSay('已模拟：记录暂停中。'); return toast('未收录：记录已暂停。可在 设置 › 模块 › 剪贴板 中恢复。'); }
+  if (S.excl.includes(from)) { scnSay(`已模拟：来源「${from}」被排除。`); return toast(`未收录：来自「${from}」的内容已被排除（设置 › 模块 › 剪贴板 › 应用排除）。`); }
+  if (kind === 'unsupported') { scnSay('已模拟：不支持的类型。'); return toast('未收录：「设计稿.sketch」的格式首版不支持。可改为复制其中的文字，或导出为图片后再复制。'); }
+  const src = kind === 'dup' ? current() : CAP[kind];
+  if (!src) return scnSay('没有选中的条目，无法模拟重复复制。');
+  // 类型开关按解析后的真实 src.type 判断：重复复制同样受限，不能绕过
+  if (!S.types.includes(src.type)) {
+    scnSay(`已模拟：${TYPES[src.type][0]}类型捕获已关闭。`);
+    return toast(`未收录：已在设置中关闭“${TYPES[src.type][0]}”类型的记录。`);
+  }
+  // 捕获不是可撤销操作，但会改变列表：重做的前提（撤销后列表没再变化）失效，清空重做栈；撤销栈保留，回放时合并保留新条目
+  hist.redo = [];
+  const same = items.find(it => it.type === src.type && it.body === src.body && it.title === src.title);
+  if (same) {
+    items = [same, ...items.filter(it => it !== same)]; same.time = '刚刚'; state.sel = same.id; render();
+    return scnSay(`重复内容：已有的「${short(same.title)}」移到最前，未新增（建议规则）。`);
+  }
+  const it = { ...src, id: `n${Date.now()}-${++opSeq}`, source: from, time: '刚刚', fav: false };
+  items = [it, ...items];
+  const extra = trimToCap([it.id]);
+  state.sel = it.id; render(); syncSettings();
+  scnSay(`已收录：${TYPES[it.type][0]}「${short(it.title)}」，来源 ${from}${extra > 0 ? `；超过容量上限，移除最旧 ${extra} 条未收藏条目` : ''}（模拟）。`);
+}
+function firstRun() {
+  commit('进入首次空态', () => { items = []; });
+  q.value = ''; state.q = ''; state.filter = 'all'; S.perm = 'not-requested';
+  render(); syncSettings();
+  scnSay('已进入首次空态：历史为空，粘贴权限重置为“未请求”。⌘Z 或“恢复示例”可还原。');
+}
+
+// ---- 事件 ----
+document.querySelectorAll('[data-i]').forEach(el => { el.outerHTML = svg(el.dataset.i, el.dataset.size || ''); });
+q.addEventListener('compositionstart', () => { state.composing = true; });
+q.addEventListener('compositionend', () => { state.composing = false; state.q = q.value; render(); });
+q.addEventListener('input', e => { if (state.composing || e.isComposing) return; state.q = q.value; render(); });
+$('clearQ').addEventListener('click', clearSearch);
+$('filters').addEventListener('click', e => { const b = e.target.closest('[data-filter]'); if (b) setFilter(b.dataset.filter); });
+$('fmtSeg').addEventListener('click', e => { const b = e.target.closest('[data-fmt]'); if (b) { state.fmt = b.dataset.fmt; render(); } });
+list.addEventListener('click', e => {
+  const r = e.target.closest('.row');
+  if (!r) return;
+  if (state.multi) { togglePick(r.dataset.id); list.focus({ preventScroll: true }); } else select(r.dataset.id, true);
+});
+$('pvBody').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]');
+  if (b) ({ clear: clearSearch, all: () => setFilter('all'), sample: restoreSample })[b.dataset.act]();
+});
+$('mbAll').addEventListener('click', () => { results().forEach(it => state.picked.add(it.id)); render(); });
+$('mbDel').addEventListener('click', deleteCurrent);
+$('mbDone').addEventListener('click', () => setMulti(false));
+$('reopenBtn').addEventListener('click', reopen);
+$('menu').addEventListener('click', e => { const b = e.target.closest('[data-m]'); if (b && !b.disabled) runMenu(b.dataset.m); });
+$('menu').addEventListener('keydown', e => {
+  const btns = [...$('menu').querySelectorAll('button:not(:disabled)')], i = btns.indexOf(document.activeElement);
+  const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: btns.length - 1 }[e.key];
+  if (to !== undefined) { e.preventDefault(); btns[(to + btns.length) % btns.length].focus(); }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeMenu(true); }
+  else if (e.key === 'Tab') closeMenu();
+});
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#menu, #moreBtn')) closeMenu(); });
+addEventListener('resize', () => closeMenu());
+const toastEl = $('toast');
+toastEl.addEventListener('mouseenter', () => clearTimeout(toastTimer));
+toastEl.addEventListener('focusin', () => clearTimeout(toastTimer));
+toastEl.addEventListener('mouseleave', () => { if (!toastEl.hidden && !toastEl.contains(document.activeElement)) armToast(); });
+toastEl.addEventListener('focusout', () => { if (!toastEl.hidden) armToast(); });
+
+// 设置内键盘（setRoot 捕获阶段，先于全局 keydown）。Esc 优先级：
+// 录制（recordKey 吞键）→ 提示（document 捕获，录制中让行）→ 设置搜索词 → 离开设置（全局 keydown 的 isSettings 分支）
+setRoot.addEventListener('keydown', e => {
+  if (hk.rec) {
+    if (e.target === recBtn(hk.rec)) return recordKey(e);
+    // 焦点已不在录制按钮（如分类导航、设置搜索）：结束录制，不写入隐藏草稿；Esc 只取消录制，其余按键照常处理
+    cancelRecording();
+    if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); return; }
+  }
+  if (e.isComposing || setUI.composing || e.keyCode === 229) return;
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'f') { e.preventDefault(); e.stopPropagation(); setQ.focus(); setQ.select(); return; }
+  if (e.key === 'Escape' && setQ.value) { e.preventDefault(); e.stopPropagation(); clearSetSearch(); }
+}, true);
+setRoot.addEventListener('click', e => {
+  const t = e.target;
+  if (t.closest('[data-close]')) return closeSettings();
+  const nav = t.closest('.nav-btn'); if (nav) return showSection(nav.dataset.sec);
+  const hit = t.closest('[data-hit]'); if (hit) return pickHit(hit.dataset.hit);
+  if (t.closest('[data-hit-clear]')) return clearSetSearch();
+  const go = t.closest('[data-go]'); if (go) return go.dataset.focus ? locate(go.dataset.focus) : showSection(go.dataset.go, { focusNav: true });
+  const h = t.closest('[data-hk]'); if (h) return hkAction(h.dataset.hk, h.dataset.cmd);
+  if (t.closest('#hkReset')) return resetHotkeys();
+  if (t.closest('#pauseBtn')) { S.paused = !S.paused; applyPrefs(); return setNote(S.paused ? '已暂停记录（模拟）：之后的复制不会被记录。' : '已恢复记录（模拟）。'); }
+  if (t.closest('#permAct')) return permAction();
+  if (t.closest('#cleanBtn')) return cleanData();
+});
+setRoot.addEventListener('change', e => {
+  const t = e.target;
+  if (['theme', 'motion', 'density'].includes(t.name)) { S[t.name] = t.value; applyPrefs(); }
+  else if (t.name === 'textSize') { S.text = t.value; applyPrefs(); }
+  else if (t.id === 'fontSel') { S.font = t.value; applyPrefs(); }
+  else if (t.id === 'monoSel') { S.mono = t.value; applyPrefs(); }
+  else if (t.id === 'menubarSw') setMenubar(t.checked);
+  else if (t.id === 'loginSw') { S.login = t.checked; setNote(t.checked ? '已开启登录时启动（模拟，未修改 macOS 登录项）。' : '已关闭登录时启动（模拟）。'); }
+  else if (t.name === 'closeAct') { S.closeAct = t.value; syncSettings(); }
+  else if (t.id === 'clipSw') setModule(t.checked);
+  else if (t.name === 'ctype') {
+    const on = [...setRoot.querySelectorAll('input[name="ctype"]:checked')].map(i => i.value);
+    if (!on.length) { t.checked = true; return setNote('至少保留一种内容类型；要完全停止记录，请暂停记录或停用模块。', null, 'err'); }
+    S.types = on; syncSettings();
+  }
+  else if (t.name === 'excl') { S.excl = [...setRoot.querySelectorAll('input[name="excl"]:checked')].map(i => i.value); }
+  else if (t.id === 'retSel') setHistory('ret', +t.value);
+  else if (t.id === 'capSel') setHistory('cap', +t.value);
+  else if (t.id === 'cleanScope' || t.id === 'cleanFav') renderClean();
+});
+// 导航：↑↓ / Home / End 移动并切换分类（roving tabindex），选中跟随焦点
+$('setNav').addEventListener('keydown', e => {
+  const btns = navBtns(), i = btns.indexOf(document.activeElement);
+  const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: btns.length - 1 }[e.key];
+  if (i < 0 || to === undefined) return;
+  e.preventDefault();
+  const b = btns[(to + btns.length) % btns.length];
+  showSection(b.dataset.sec); b.focus();
+});
+// 设置搜索：组词期间不搜索；↓ 进入结果，↵ 打开第一个结果
+setQ.addEventListener('compositionstart', () => { setUI.composing = true; });
+setQ.addEventListener('compositionend', () => { setUI.composing = false; runSearch(); });
+setQ.addEventListener('input', e => { if (setUI.composing || e.isComposing) return; runSearch(); });
+setQ.addEventListener('keydown', e => {
+  if (e.isComposing || setUI.composing || e.keyCode === 229 || $('p-hits').hidden) return;
+  const first = $('hits').querySelector('.hit-row');
+  if (!first) return;
+  if (e.key === 'ArrowDown') { e.preventDefault(); first.focus(); }
+  else if (e.key === 'Enter') { e.preventDefault(); pickHit(first.dataset.hit); }
+});
+$('hits').addEventListener('keydown', e => {
+  const rows = [...$('hits').querySelectorAll('.hit-row')], i = rows.indexOf(document.activeElement);
+  if (i < 0 || (e.key !== 'ArrowDown' && e.key !== 'ArrowUp')) return;
+  e.preventDefault();
+  const n = i + (e.key === 'ArrowDown' ? 1 : -1);
+  (n < 0 ? setQ : rows[Math.min(n, rows.length - 1)]).focus();
+});
+$('setQClear').addEventListener('click', clearSetSearch);
+narrowSet.addEventListener('change', hideTip);
+
+// tooltip 事件
+document.addEventListener('pointerover', e => {
+  if (e.pointerType === 'touch') return;
+  if (e.target.closest('#tip')) { clearTimeout(tipHideTimer); return; }
+  const el = e.target.closest('[data-tip]');
+  clearTimeout(tipTimer);
+  if (!el) { if (tipFor) tipHideTimer = setTimeout(hideTip, 150); return; }
+  if (el === tipFor) { clearTimeout(tipHideTimer); return; }
+  // 已有提示时切到相邻控件立即显示（与 macOS 一致），否则等 800ms
+  if (tipFor) showTip(el); else tipTimer = setTimeout(() => showTip(el), 800);
+});
+document.documentElement.addEventListener('pointerleave', hideTip);
+document.addEventListener('pointerdown', e => { if (!e.target.closest('#tip')) hideTip(); }, true);
+document.addEventListener('focusin', e => {
+  const el = e.target.closest && e.target.closest('[data-tip]');
+  if (el && el === e.target && el.matches(':focus-visible')) { clearTimeout(tipTimer); showTip(el); } else if (tipFor) hideTip();
+});
+document.addEventListener('focusout', e => { if (tipFor && e.target === tipFor) hideTip(); });
+// Esc 先关提示：捕获阶段处理，不会同时关掉菜单、弹窗或设置；快捷键录制中让给录制取消
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && tipFor && !hk.rec) { e.preventDefault(); e.stopPropagation(); hideTip(); } }, true);
+
+$('scn').addEventListener('submit', e => e.preventDefault());
+$('scn').addEventListener('click', e => {
+  const c = e.target.closest('[data-cap]'), s = e.target.closest('[data-scn]');
+  if (c) capture(c.dataset.cap);
+  if (s) ({ empty: firstRun, sample: () => { restoreSample(); scnSay('已恢复示例数据。'); }, settings: () => { if (app.hidden) reopen(); openSettings(s); } })[s.dataset.scn]();
+});
+$('scn').addEventListener('change', e => {
+  const t = e.target, flag = { scnConv: 'conv', scnFocus: 'focus', scnDelFail: 'delFail', scnHkFail: 'hkFail' }[t.id];
+  if (flag) flags[flag] = t.checked;
+  else if (t.id === 'scnPause') { S.paused = t.checked; applyPrefs(); }
+  else if (t.id === 'scnPerm') S.perm = t.value;
+  else if (t.id === 'scnLat') S.lat = t.value;
+  syncSettings();
+});
+darkMQ.addEventListener('change', applyPrefs);
+reduceMQ.addEventListener('change', syncSettings);
+$('backBtn').addEventListener('click', () => setView('list'));
+$('favBtn').addEventListener('click', toggleFav);
+$('copyBtn').addEventListener('click', () => output('copy'));
+$('pasteBtn').addEventListener('click', () => output('paste'));
+$('themeBtn').addEventListener('click', toggleTheme);
+$('settingsBtn').addEventListener('click', () => openSettings($('settingsBtn')));
+$('railClip').addEventListener('click', closeSettings);
+$('fnNav').addEventListener('click', e => { const b = e.target.closest('[data-fn]'); if (b) setFn(b.dataset.fn); });
+$('clipRoute').addEventListener('focusin', e => { lastWork = e.target; });
+$('moreBtn').addEventListener('click', openMoreMenu);
+document.addEventListener('focusin', () => app.classList.toggle('is-nav', document.activeElement === q || document.activeElement === list));
+document.addEventListener('focusout', () => setTimeout(() => app.classList.toggle('is-nav', document.activeElement === q || document.activeElement === list)));
+mobile.addEventListener('change', () => { state.view = 'list'; render(); });
+
+document.addEventListener('keydown', e => {
+  // 输入法组词中：↵ / ↑↓ 交给输入法；Safari 组词结束时的 keyCode 229 也忽略
+  if (e.isComposing || state.composing || e.keyCode === 229) return;
+  if (document.querySelector('dialog[open]')) return; // 弹窗内由原生 dialog 处理 Esc 与焦点圈定
+  const mod = e.metaKey || e.ctrlKey, k = e.key, a = document.activeElement;
+  const typing = a && a.matches('input:not([type="checkbox"]):not([type="radio"]), textarea, select');
+  // 模拟退出后应用不在运行：所有全局命令（唤起、暂停）都不响应，必须先于任何热键分支判断
+  if (quitted) return;
+  // 全局“暂停 / 恢复记录”（模拟）：窗口关闭（未退出）时也响应
+  if (S.clipOn && comboHit(e, S.hk.pause)) {
+    e.preventDefault(); S.paused = !S.paused; applyPrefs();
+    if (!app.hidden) say(S.paused ? `已暂停记录（${S.hk.pause.label}，模拟）` : `已恢复记录（${S.hk.pause.label}，模拟）`);
+    return;
+  }
+  if (app.hidden) { if (matchHotkey(e)) { e.preventDefault(); reopen(); } return; }
+  // 以下修饰键命令（,  Z  Y  F  ↵  ↑↓  D）的匹配规则登记在 LOCAL_KEYS，快捷键录制据此拒绝冲突组合
+  if ((e.metaKey || e.ctrlKey) && e.key === ',') { e.preventDefault(); openSettings(document.activeElement); return; }
+  if (matchHotkey(e)) { e.preventDefault(); closeWindow(); return; }
+  // 设置视图：其余剪贴板快捷键不作用于隐藏的工作区；Esc 离开设置（录制 / 提示 / 搜索词已在捕获阶段先处理）
+  if (isSettings()) { if (k === 'Escape') { e.preventDefault(); closeSettings(); } return; }
+  if (!$('menu').hidden) return; // 菜单自己处理方向键与 Esc
+  if (mod && k.toLowerCase() === 'z') { if (typing) return; e.preventDefault(); e.shiftKey ? redo() : undo(); return; } // 输入框里保留文字撤销
+  if (e.ctrlKey && k.toLowerCase() === 'y' && !typing) { e.preventDefault(); redo(); return; }
+  if (mod && k.toLowerCase() === 'f') { e.preventDefault(); q.focus(); q.select(); return; }
+  if (k === 'Escape') { e.preventDefault(); escape(); return; }
+  if (k === '?' && !typing) { e.preventDefault(); showKeys(); return; }
+  if (a !== q && a !== list) return; // 其余控件保留原生 Enter / Space
+  if (a === list && k === ' ') { e.preventDefault(); if (state.multi) { if (state.sel) togglePick(state.sel); } else zoom(); return; }
+  if (a === list && (k === 'Backspace' || k === 'Delete')) { e.preventDefault(); deleteCurrent(); return; }
+  if (k === 'ArrowDown' || k === 'ArrowUp') {
+    e.preventDefault();
+    const dir = k === 'ArrowDown' ? 1 : -1;
+    move(mod ? dir * Infinity : dir);
+  } else if (k === 'PageDown' || k === 'PageUp') {
+    e.preventDefault(); move(k === 'PageDown' ? 8 : -8);
+  } else if (k === 'Enter') {
+    e.preventDefault(); output(mod ? 'copy' : 'paste');
+  } else if (mod && k.toLowerCase() === 'd') {
+    e.preventDefault(); toggleFav();
+  } else if (k === 'ArrowRight' && a === list && mobile.matches && state.sel) {
+    e.preventDefault(); setView('preview');
+  }
+});
+
+applyPrefs();
+render();
+q.focus();
+</script>
+</body>
+</html>
