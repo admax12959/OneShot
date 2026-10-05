@@ -1,31 +1,49 @@
 # OneShot
 
-OneShot 的可交互界面原型，包含剪贴板工作区与全局设置。
+Interactive HTML prototype for a macOS-style local utility suite: clipboard, screenshot / OCR, displays, battery, JSON format / studio, password autofill / vault, and infinite canvas.
 
-## 打开原型
+Primary UI language is **English**. The product is planned to support Chinese and English; this repository ships English chrome first.
 
-下载仓库后，用现代浏览器打开 [`prototype/prototype.html`](prototype/prototype.html)。HTML、样式、脚本和图标都在这个文件内，无需安装依赖或构建。
+## Open the prototype
 
-界面采用三栏结构：应用、应用内功能、工作区。可切换历史与收藏，搜索和预览内容，并调整外观、动效与快捷键设置。
+After cloning, open [`prototype/prototype.html`](prototype/prototype.html) in a modern browser. HTML, CSS, JavaScript, and icons are self-contained. No install or build step is required to view.
 
-## 检查交互
+Source parts used to rebuild that file live under [`prototype/src/`](prototype/src/). From that folder:
 
-页面底部的「模拟情景 · 评审用」面板可切换空态、失败和延迟情景。
+```bash
+python3 build.py
+```
 
-- 检查搜索、类型筛选、选中项与预览是否对应
-- 检查键盘导航、取消操作、删除确认与撤销
-- 在全局设置中切换浅色、深色及完整、减少、关闭动效
-- 模拟快捷键保存失败、粘贴失败和超时，检查提示与重试
-- 缩窄浏览器窗口，检查导航与预览切换
+This regenerates `../prototype.html` (and the sibling `oneshot-runtime-all.html` path used during design).
 
-此次提交通过了 JavaScript 语法检查、HTML 静态 ID 与引用检查。原型无需外部资源。发布整理仅修改注释，未改变界面或执行逻辑。
+## Product shape (four layers by dwell time)
 
-## 模拟范围
+Not one mega-window with tabs. Surfaces are separated by how long you stay:
 
-示例记录、复制粘贴、系统权限、全局快捷键和保存操作均在浏览器内模拟。原型不读写系统剪贴板、不注册系统快捷键、不请求系统权限、不联网。刷新页面会恢复示例状态。
+1. **Menu bar** — Battery and Displays for a quick glance; Screenshot entry.
+2. **Runtime floats** — Clipboard near the caret; JSON Format hotkey (no window); password Autofill near a login field. Passwords must never enter clipboard history.
+3. **Transient editor** — Screenshot / record / OCR annotate on capture, then close.
+4. **Full workspaces** — Canvas, JSON Studio, and Vault each open in their own window.
 
-真实 macOS 集成、跨应用粘贴、性能与原生应用构建尚未在本仓库验证。
+Each feature also splits **runtime** (summon, act, dismiss) from **management** (history, pins, retention, settings).
 
-## 图标归属
+## What to click through
 
-UI 图标来自 [Lucide](https://github.com/lucide-icons/lucide)，适用 ISC 许可；源自 Feather 的图标适用 MIT 许可。完整许可文本已内嵌在 HTML 中。OneShot 品牌标志单独保留。
+- **Home** desk: OneShot palette (Clipboard, Screenshot, Format, Autofill) plus links to Canvas, JSON Studio, Vault, and history.
+- **Clipboard** float: select an item and paste; JSON items can open Format.
+- **Format**: Formatted / Minified / Sorted, Undo, open Studio.
+- **Displays**: Built-in Display, linked brightness, Night Look, Day / Night / Cinema / Mirror presets.
+- **Autofill / Vault**: Filled with “Not added to Clipboard”.
+- Cross-flows: shot Copy & Close can land on clipboard; vault fill does not.
+
+Reference screenshots (English UI) are under [`docs/screenshots/`](docs/screenshots/).
+
+## Simulation scope
+
+Sample records, paste, permissions, hotkeys, and save failures are simulated in the browser. The prototype does not read the system clipboard, register global hotkeys, request OS permissions, or call the network. Refresh restores sample state.
+
+Real macOS integration, cross-app paste, performance, and a native app build are not verified in this repository.
+
+## Icons
+
+UI icons are from [Lucide](https://github.com/lucide-icons/lucide) (ISC; Feather-derived icons MIT). License text is embedded in the HTML. The OneShot mark is separate.
