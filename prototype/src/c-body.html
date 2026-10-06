@@ -1,0 +1,289 @@
+<section class="view" id="home"></section>
+
+<div class="pal" id="pal" role="menu" aria-label="OneShot">
+  <div class="pal-run">
+    <button data-run="clip" style="--i:0"><span class="pc"><svg class="ic l"><use href="#i-clip"/></svg></span>Clipboard<kbd>⌘⇧V</kbd></button>
+    <button data-run="shot" style="--i:1"><span class="pc"><svg class="ic l"><use href="#i-shot"/></svg></span>Screenshot<kbd>⌘⇧2</kbd></button>
+    <button data-run="json" style="--i:2"><span class="pc"><svg class="ic l"><use href="#i-format"/></svg></span>Format<kbd>⌘⇧J</kbd></button>
+    <button data-run="vault" style="--i:3"><span class="pc"><svg class="ic l"><use href="#i-key"/></svg></span>Autofill<kbd>⌘⇧A</kbd></button>
+  </div>
+  <i class="sep"></i>
+  <div class="pal-win">
+    <button data-go="#home" style="--i:4"><svg class="ic"><use href="#i-home"/></svg>Desktop<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+    <button data-go="#canvas" style="--i:5"><svg class="ic"><use href="#i-canvas"/></svg>Canvas<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+    <button data-go="#json-mgmt" style="--i:6"><svg class="ic"><use href="#i-braces"/></svg>JSON Studio<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+    <button data-go="#vault-mgmt" style="--i:7"><svg class="ic"><use href="#i-lock"/></svg>Vault<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+    <button data-go="#clip-mgmt" style="--i:8"><svg class="ic"><use href="#i-clip"/></svg>Clipboard History<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+    <button data-go="#shot-mgmt" style="--i:9"><svg class="ic"><use href="#i-history"/></svg>Screenshot History<svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+  </div>
+  <div class="pal-foot"><button class="ibtn tip-t" data-go="#battery-mgmt" data-tip="Battery"><svg class="ic"><use href="#i-bat"/></svg></button><button class="ibtn tip-t" data-go="#display-mgmt" data-tip="Displays"><svg class="ic"><use href="#i-disp"/></svg></button><span class="sp"></span><button class="ibtn tip-t" data-tip="Preferences"><svg class="ic"><use href="#i-gear"/></svg></button></div>
+</div>
+
+<section class="view" id="battery-run">
+  <div class="desk" id="batDesk">
+    <div class="menubar" data-app="Keynote" data-menus="File,Edit,Insert,Slide,Format" data-active="bat"></div>
+    <div class="docwin" style="left:110px;top:70px;width:760px;height:660px">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><div class="t">Q4 Roadmap</div></div>
+      <div class="doc">
+        <h1>Q4 Roadmap</h1>
+        <div class="date">Product Design · Oct 5</div>
+        <p>October: lock in Clipboard and Screenshot capture UX. November: Vault autofill. December: Display presets.</p>
+        <div class="row"><span class="k">Oct</span><span class="v">Clipboard paste, Screenshot toolbar</span></div>
+        <div class="row"><span class="k">Nov</span><span class="v">Autofill, Charge Limit</span></div>
+        <div class="row"><span class="k">Dec</span><span class="v">Display presets, Canvas export</span></div>
+        <p style="margin-top:22px" class="muted">Sync progress on the first Monday of each month.</p>
+      </div>
+    </div>
+    <div class="pop" id="batPop">
+      <div class="bp-top stg" style="--i:0">
+        <div class="bigpct"><span id="bpNum">64</span><small>%</small></div>
+        <div class="bp-src">
+          <svg class="ic s"><use href="#i-plug"/></svg>96 W
+        </div>
+      </div>
+      <div class="bbar stg" id="bpBar" style="--i:1;--v:0;--l:80"><div class="fl"></div><div class="to"></div><div class="lm"><span>80</span></div></div>
+      <div class="bp-st stg" style="--i:2" id="bpSt"><svg class="ic s"><use href="#i-bolt"/></svg><span>38 min to 80%</span></div>
+      <div class="bp-row stg" style="--i:3"><svg class="ic"><use href="#i-leaf"/></svg><span class="lab">Charge Limit</span><button class="tog on" id="bpTog" aria-label="Charge Limit"></button></div>
+      <div class="pop-foot stg" style="--i:4"><svg class="ic s"><use href="#i-heart"/></svg>92%<span style="margin-left:10px;display:flex;align-items:center;gap:6px"><svg class="ic s"><use href="#i-thermo"/></svg>31°</span>
+        <span class="sp"><a class="ibtn tip-t" data-tip="Battery Settings" href="#battery-mgmt"><svg class="ic"><use href="#i-sliders"/></svg></a></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="battery-mgmt">
+  <div class="winwrap"><div class="win">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <nav class="rail" data-rail="bat"></nav>
+    <header class="head">
+      <div class="title"><svg class="ic"><use href="#i-bat"/></svg>Battery</div>
+      <div style="margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--ink-3)"><svg class="ic s"><use href="#i-plug"/></svg>Power adapter · 96 W</div>
+    </header>
+    <div class="body"><div class="pane">
+      <div class="pane-main">
+        <div class="hero">
+          <div class="bigpct"><span id="bmNum">64</span><small>%</small></div>
+          <div class="bwrap">
+            <div class="bbar" id="bmBar" style="--v:0;--l:80"><div class="fl"></div><div class="to"></div><div class="lm"><span id="bmLimLab">80</span><i class="grip"></i></div></div>
+            <div class="bp-st"><svg class="ic s"><use href="#i-bolt"/></svg><span id="bmSt">Charging · 38 min to 80%, then hold</span></div>
+          </div>
+        </div>
+        <div class="stats">
+          <div class="stat stg auto" style="--i:0"><svg class="ic l"><use href="#i-heart"/></svg><div><b>92%</b><span>Health</span></div></div>
+          <div class="stat stg auto" style="--i:1"><svg class="ic l"><use href="#i-cycle"/></svg><div><b>318</b><span>Cycles</span></div></div>
+          <div class="stat stg auto" style="--i:2"><svg class="ic l"><use href="#i-thermo"/></svg><div><b>31.4°</b><span>Temp</span></div></div>
+          <div class="stat stg auto" style="--i:3"><svg class="ic l"><use href="#i-bolt"/></svg><div><b>42 W</b><span>Input</span></div></div>
+        </div>
+        <div class="chartbox">
+          <div class="hd">Level<span class="lg"><span><i style="background:var(--lime-soft)"></i>Cruise band</span><span><i style="background:rgba(0,0,0,.07)"></i>Plugged</span></span>
+            <div class="seg t" id="bmSeg"><span class="knob"></span><button class="on">24 h</button><button>7 d</button></div>
+          </div>
+          <div class="cv" id="bmChart"></div>
+        </div>
+      </div>
+      <aside class="pane-side">
+        <div class="set-sec">Limit</div>
+        <div class="set-row"><svg class="ic"><use href="#i-leaf"/></svg><span class="lab">Charge Limit</span><button class="tog on" id="bmTog"></button></div>
+        <div class="set-col"><div class="slr" style="padding-left:28px"><span class="kbd">50</span><div class="sl" id="bmLim" style="--v:60"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div><span class="val" id="bmLimV">80%</span></div></div>
+        <div class="set-row"><svg class="ic"><use href="#i-cycle"/></svg><span class="lab">Cruise band<small>Resume charging below 75%</small></span><span class="val">5%</span></div>
+        <div class="set-row"><svg class="ic"><use href="#i-thermo"/></svg><span class="lab">Pause when hot<small>Stop above 35°</small></span><button class="tog on sm"></button></div>
+        <div class="set-sec">Checks</div>
+        <div class="set-row"><svg class="ic"><use href="#i-clock"/></svg><span class="lab">Check interval</span><div class="seg t" id="bmInt"><span class="knob"></span><button>30 s</button><button class="on">1 min</button><button>5 min</button></div></div>
+        <div class="set-sec">Calibration<span style="margin-left:auto;font-weight:400">Last Aug 12</span></div>
+        <div class="cal">
+          <div class="st"><svg class="ic"><use href="#i-minus"/></svg><b>15%</b><small>Drain</small></div><i></i>
+          <div class="st"><svg class="ic"><use href="#i-bolt"/></svg><b>100%</b><small>Full</small></div><i></i>
+          <div class="st"><svg class="ic"><use href="#i-clock"/></svg><b>1 h</b><small>Hold</small></div>
+        </div>
+        <div class="act" style="margin-top:auto"><button class="btn sec wide"><svg class="ic"><use href="#i-target"/></svg>Start calibration</button></div>
+      </aside>
+    </div></div>
+    <footer class="foot"><span>Apple Silicon · Design capacity 72.6 Wh</span><div class="r"><svg class="ic s"><use href="#i-clock"/></svg>Check every 1 min</div></footer>
+  </div></div>
+</section>
+
+<section class="view" id="display-run">
+  <div class="desk" id="dispDesk">
+    <div class="menubar" data-app="Preview" data-menus="File,Edit,View,Go,Tools" data-active="disp"></div>
+    <div class="docwin" style="left:96px;top:70px;width:800px;height:640px">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><div class="t">Moganshan-0921.heic</div></div>
+      <div id="dispPhoto" style="position:absolute;left:0;right:0;top:44px;bottom:0"></div>
+    </div>
+    <div class="pop" id="dispPop">
+      <div class="dp-hd stg" style="--i:0"><span class="t">Displays</span><span class="sp">
+        <button class="mic on tip-b" data-tip="Link brightness" id="dpLink"><svg class="ic"><use href="#i-link"/></svg></button>
+        <button class="mic tip-b" data-tip="Night Look" id="dpNight" style="--c:#F08C2B;--cf:#fff"><svg class="ic"><use href="#i-moon"/></svg></button></span></div>
+      <div id="dpList"></div>
+      <div class="dp-pre stg" style="--i:4" id="dpPre"></div>
+      <div class="pop-foot stg" style="--i:5"><svg class="ic s"><use href="#i-arrange"/></svg>3 displays<span class="sp">
+        <button class="ibtn tip-t" data-tip="Disconnect"><svg class="ic"><use href="#i-power"/></svg></button>
+        <a class="ibtn tip-t" data-tip="Display Settings" href="#display-mgmt"><svg class="ic"><use href="#i-sliders"/></svg></a></span></div>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="display-mgmt">
+  <div class="winwrap"><div class="win">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <nav class="rail" data-rail="disp"></nav>
+    <header class="head">
+      <div class="title"><svg class="ic"><use href="#i-disp"/></svg>Displays</div>
+      <div style="margin-left:auto;display:flex;gap:2px">
+        <button class="ibtn tip-b" data-tip="Mirror"><svg class="ic"><use href="#i-copy"/></svg></button>
+        <button class="ibtn tip-b" data-tip="Virtual Display"><svg class="ic"><use href="#i-plus"/></svg></button>
+      </div>
+    </header>
+    <div class="body"><div class="pane">
+      <div class="pane-main">
+        <div class="arr" id="arr"><div class="hint"><svg class="ic s"><use href="#i-hand"/></svg>Drag to arrange</div></div>
+        <div class="pres" id="pres"></div>
+      </div>
+      <aside class="pane-side" id="dsSide">
+        <div class="ds-hd"><span class="mic lg on" id="dsIc"><svg class="ic"><use href="#i-disp"/></svg></span><div><b id="dsName">Studio Display</b><small id="dsSpec">5120 × 2880 · 60 Hz</small></div><span class="sp"><span class="ds-main tip-b" data-tip="Main Display" id="dsMain"><svg class="ic s"><use href="#i-star"/></svg></span></span></div>
+        <div class="ds-sec">Resolution<span class="v" id="dsScaleV">2560 × 1440</span></div>
+        <div class="ds-sl"><svg class="ic s"><use href="#i-aa"/></svg><div class="sl" style="--v:50" id="dsScale"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div><svg class="ic l"><use href="#i-aa"/></svg></div>
+        <div class="ds-sec">Brightness<span class="v" id="dsBriV">55</span></div>
+        <div class="ds-sl"><svg class="ic s"><use href="#i-sundim"/></svg><div class="sl" style="--v:55" id="dsBri"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div><svg class="ic l"><use href="#i-sun"/></svg></div>
+        <div class="ds-row"><svg class="ic"><use href="#i-spark"/></svg><span class="lab">True Tone boost</span><button class="tog sm"></button></div>
+        <button class="ds-row disc" id="dsDisc"><svg class="ic"><use href="#i-contrast"/></svg><span class="lab">Picture</span><span class="v" id="dsPicV">Standard</span><svg class="ic s chev"><use href="#i-chevr"/></svg></button>
+        <div class="picg" id="dsPic"><div class="in">
+          <div class="pr2"><span class="tip-t" data-tip="Contrast"><svg class="ic s"><use href="#i-contrast"/></svg></span><div class="sl" style="--v:50"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div></div>
+          <div class="pr2"><span class="tip-t" data-tip="Gamma"><svg class="ic s"><use href="#i-drop"/></svg></span><div class="sl" style="--v:46"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div></div>
+          <div class="pr2"><span class="tip-t" data-tip="Warmth"><svg class="ic s"><use href="#i-thermo"/></svg></span><div class="sl warm" style="--v:40"><i class="tr"></i><i class="fl"></i><i class="kn"></i></div></div>
+        </div></div>
+        <div class="act"><button class="btn sec"><svg class="ic"><use href="#i-star"/></svg>Set as Main</button><button class="btn pri wide"><svg class="ic"><use href="#i-plus"/></svg>Save Preset</button></div>
+      </aside>
+    </div></div>
+    <footer class="foot"><span>3 connected · DDC on 2</span><div class="r"><svg class="ic s"><use href="#i-sun"/></svg>Auto brightness follows Built-in</div></footer>
+  </div></div>
+</section>
+
+<section class="view" id="json-run">
+  <div class="desk" id="jsonDesk">
+    <div class="menubar" data-app="TextEdit" data-menus="File,Edit,Format,View,Window"></div>
+    <div class="docwin jwin">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><div class="t">refund-callback.txt</div></div>
+      <div class="jdoc">
+        <div class="jl mut">POST /hooks/refund · 200</div>
+        <div class="jl mut">2026-10-04 23:12:04</div>
+        <div class="jl"></div>
+        <div class="jsel jx one" id="jcb"></div>
+        <div class="jl"></div>
+      </div>
+    </div>
+    <div class="jp" id="jp">
+      <span class="chk"><svg class="ic"><use href="#i-check"/></svg></span><span id="jpT">Formatted</span><span class="m" id="jpM">3 levels · 11 keys</span>
+      <div class="seg sm" id="jpSeg"><span class="knob"></span>
+        <button class="on tip-t" data-tip="Pretty" data-m="pretty"><svg class="ic s"><use href="#i-format"/></svg></button>
+        <button class="tip-t" data-tip="Minify" data-m="min"><svg class="ic s"><use href="#i-minify"/></svg></button>
+        <button class="tip-t" data-tip="Sort keys" data-m="sort"><svg class="ic s"><use href="#i-sort"/></svg></button>
+      </div>
+      <span class="vbar"></span>
+      <button class="ibtn tip-t" data-tip="Revert" id="jpUndo"><svg class="ic s"><use href="#i-undo"/></svg></button>
+      <a class="ibtn tip-t" data-tip="Open in Studio" href="#json-mgmt"><svg class="ic s"><use href="#i-expand"/></svg></a>
+      <i class="cd"></i>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="json-mgmt">
+  <div class="winwrap"><div class="stu">
+    <div class="tabs"><div class="lights"><i></i><i></i><i></i></div>
+      <div class="tab on"><svg class="ic s"><use href="#i-braces"/></svg>refund-callback.json<i class="mod"></i><span class="x"><svg class="ic"><use href="#i-x"/></svg></span></div>
+      <div class="tab"><svg class="ic s"><use href="#i-braces"/></svg>order-A1042.json<span class="x"><svg class="ic"><use href="#i-x"/></svg></span></div>
+      <div class="tab"><svg class="ic s"><use href="#i-braces"/></svg>config.prod.json<span class="x"><svg class="ic"><use href="#i-x"/></svg></span></div>
+      <button class="ibtn add tip-b" data-tip="New tab"><svg class="ic s"><use href="#i-plus"/></svg></button>
+      <span class="brandsm" id="stuMark"></span>
+    </div>
+    <div class="tools2">
+      <div class="seg" id="stuView"><span class="knob"></span>
+        <button class="on tip-b" data-tip="Tree + Text" data-v="split"><svg class="ic"><use href="#i-split"/></svg></button>
+        <button class="tip-b" data-tip="Tree" data-v="tree"><svg class="ic"><use href="#i-tree"/></svg></button>
+        <button class="tip-b" data-tip="Text" data-v="text"><svg class="ic"><use href="#i-code"/></svg></button>
+      </div>
+      <span class="vbar"></span>
+      <div class="acts2" id="stuActs">
+        <button class="ibtn on tip-b" data-tip="Format" data-a="pretty"><svg class="ic"><use href="#i-format"/></svg></button>
+        <button class="ibtn tip-b" data-tip="Minify" data-a="min"><svg class="ic"><use href="#i-minify"/></svg></button>
+        <button class="ibtn tip-b" data-tip="Sort keys" data-a="sort"><svg class="ic"><use href="#i-sort"/></svg></button>
+      </div>
+      <div class="morew" id="stuMoreW"><button class="ibtn tip-b" data-tip="More" id="stuMore"><svg class="ic"><use href="#i-more"/></svg></button>
+        <div class="menu" id="stuMenu">
+          <button><svg class="ic"><use href="#i-diff"/></svg>Diff</button>
+          <button><svg class="ic"><use href="#i-convert"/></svg>Convert</button>
+          <button><svg class="ic"><use href="#i-shield"/></svg>Validate schema</button>
+          <button><svg class="ic"><use href="#i-code"/></svg>Generate types</button>
+          <i class="sep"></i>
+          <button><svg class="ic"><use href="#i-wrench"/></svg>Repair</button>
+        </div>
+      </div>
+      <label class="q"><svg class="ic s"><use href="#i-filter"/></svg><input placeholder="Filter" id="stuQ"><span class="kbd">⌘K</span></label>
+    </div>
+    <div class="split" id="stuSplit"><div class="tree" id="tree"></div><div class="txt jx" id="txt"></div></div>
+    <div class="sbar"><span class="ok"><svg class="ic"><use href="#i-okc"/></svg>Valid</span><span class="path" id="stuPath"></span><span class="r"><span id="stuSize">612 B</span><span>UTF-8</span><span id="stuInd">Spaces 2</span></span></div>
+  </div></div>
+</section>
+
+<section class="view" id="vault-run">
+  <div class="desk" id="vaultDesk">
+    <div class="menubar" data-app="Safari" data-menus="File,Edit,View,History,Bookmarks"></div>
+    <div class="vwin">
+      <div class="tb"><div class="lights"><i></i><i></i><i></i></div><div class="url"><svg class="ic s"><use href="#i-lock"/></svg>console.yike.cloud/login</div></div>
+      <div class="login">
+        <div class="lg"><i></i></div>
+        <h2>Sign in to Yike Cloud</h2>
+        <div class="sub">Console · East China 2</div>
+        <div class="fld"><label>Account</label><div class="inp focus" id="vU"><span id="vUt"></span><span class="caret" id="vCaret"></span></div></div>
+        <div class="fld"><label>Password</label><div class="inp" id="vP"><span class="pw" id="vPt"></span></div></div>
+        <div class="go" id="vGo">Sign in</div>
+        <div class="row2"><span>Forgot password</span><span>Use SSO</span></div>
+      </div>
+    </div>
+    <div class="ap" id="ap">
+      <div class="hd"><svg class="ic s"><use href="#i-key"/></svg>console.yike.cloud<span class="sp"><button class="ibtn tip-t" data-tip="Search vault"><svg class="ic s"><use href="#i-search"/></svg></button><a class="ibtn tip-t" data-tip="Open Vault" href="#vault-mgmt"><svg class="ic s"><use href="#i-expand"/></svg></a></span></div>
+      <div class="unlock"><div class="ring"><svg class="r" viewBox="0 0 40 40"><circle class="bg" cx="20" cy="20" r="19"/><circle class="fg" cx="20" cy="20" r="19"/></svg><svg class="ic l"><use href="#i-finger"/></svg></div><div><b>Touch ID</b><small>Unlock Personal.kdbx</small></div></div>
+      <div class="list" id="apList"><div class="hl" id="apHl"></div></div>
+      <div class="ft"><span><svg class="ic"><use href="#i-kbd"/></svg>↵</span><span><svg class="ic"><use href="#i-key"/></svg>⌘C</span><span><svg class="ic"><use href="#i-user"/></svg>⌘B</span><span class="nc" style="margin-left:auto"><svg class="ic"><use href="#i-clipoff"/></svg>Keep out of Clipboard</span></div>
+    </div>
+    <div class="toast two" id="vToast"><span class="chk"><svg class="ic"><use href="#i-check"/></svg></span><span class="tt"><b>Filled</b><small><svg class="ic"><use href="#i-clipoff"/></svg>Not added to Clipboard</small></span></div>
+  </div>
+</section>
+
+<section class="view" id="vault-mgmt">
+  <div class="winwrap"><div class="win">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <nav class="rail" data-rail="key"></nav>
+    <header class="head">
+      <div class="title"><svg class="ic"><use href="#i-key"/></svg>Vault<span style="font-weight:400;font-size:12.5px;color:var(--ink-4);margin-left:4px">Personal.kdbx</span></div>
+      <label class="search"><svg class="ic"><use href="#i-search"/></svg><input placeholder="Search"><kbd>⌘F</kbd></label>
+      <div style="display:flex;gap:2px">
+        <button class="ibtn tip-b" data-tip="New entry"><svg class="ic"><use href="#i-plus"/></svg></button>
+        <button class="ibtn tip-b" data-tip="Generate password"><svg class="ic"><use href="#i-dice"/></svg></button>
+        <button class="ibtn tip-b" data-tip="Lock"><svg class="ic"><use href="#i-lock"/></svg></button>
+      </div>
+    </header>
+    <div class="body"><div class="vm">
+      <div class="groups" id="groups"></div>
+      <div class="ents"><div class="eh2"><span>Title</span><span>Username</span><span style="text-align:right">Modified</span></div><div id="ents"></div></div>
+      <aside class="vd2" id="vd2"></aside>
+    </div></div>
+    <footer class="foot"><span>128 entries · AES-256 · Argon2</span><div class="r"><svg class="ic s"><use href="#i-clipoff"/></svg>Concealed paste · not in history<span class="fsep"></span><svg class="ic s"><use href="#i-clock"/></svg>Lock after 5 min idle</div></footer>
+  </div></div>
+</section>
+
+<section class="view" id="canvas">
+  <div class="winwrap"><div class="cvw" id="cvw">
+    <div class="lights"><i></i><i></i><i></i></div>
+    <div class="cv-top"><span id="cvMark"></span><button class="nm">Release Flow<svg class="ic s"><use href="#i-chevd"/></svg></button></div>
+    <div class="cv-tr">
+      <button class="ibtn tip-b" data-tip="Undo"><svg class="ic"><use href="#i-undo"/></svg></button>
+      <button class="ibtn tip-b" data-tip="Redo"><svg class="ic"><use href="#i-redo"/></svg></button>
+      <span class="vbar"></span>
+      <button class="ibtn tip-b" data-tip="Export"><svg class="ic"><use href="#i-share"/></svg></button>
+      <button class="ibtn tip-b" data-tip="More"><svg class="ic"><use href="#i-more"/></svg></button>
+    </div>
+    <div class="board" id="board"></div>
+    <div class="stylep" id="stylep"></div>
+    <div class="shelf" id="shelf"></div>
+    <div class="zoom"><button class="ibtn tip-t" data-tip="Zoom out"><svg class="ic s"><use href="#i-minus"/></svg></button><span>100%</span><button class="ibtn tip-t" data-tip="Zoom in"><svg class="ic s"><use href="#i-plus"/></svg></button></div>
+  </div></div>
+</section>
