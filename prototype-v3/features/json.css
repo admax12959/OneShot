@@ -1,0 +1,19 @@
+/* JSON feature */
+.js-float{min-width:340px;max-width:520px}
+.js-pill{padding:10px 12px;display:flex;flex-direction:column;gap:8px}
+.js-acts{display:flex;align-items:center;gap:8px}
+.js-sp{flex:1}
+.js-note{font-size:11.5px}
+.js-prev{margin:0;max-height:170px;overflow:auto;padding:8px 10px;background:#f6f6f8;border-radius:8px;white-space:pre;max-width:496px}
+.js-fail{display:flex;gap:10px;align-items:flex-start}
+.js-fail .ic{color:#c4001a;margin-top:2px}
+.js-loc{color:#555;font-size:12.5px}
+.js-hint{display:flex;align-items:center;gap:7px;padding:2px 2px;white-space:nowrap}
+.js-list{width:240px!important}
+.js-rn{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.js-ed{display:flex;flex-direction:column;gap:10px;overflow:hidden!important}
+.js-edh{display:flex;gap:10px;align-items:center}
+.js-name{flex:1;font-weight:600}
+.js-text{flex:1;min-height:0;resize:none;line-height:1.5;white-space:pre}
+.js-fx{font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.split > .list:focus{outline:none}
