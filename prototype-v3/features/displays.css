@@ -1,0 +1,39 @@
+.dp-pop{width:320px}
+.dp-row{padding:4px 0 6px}
+.dp-h{display:flex;align-items:center;gap:7px;margin-bottom:2px}
+.dp-h span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-h .mono{width:40px;text-align:right;color:#555}
+.dp-sub{font-size:11px;color:#86868b;margin-bottom:2px}
+.dp-row input[type=range]{width:100%;margin:2px 0}
+.dp-row .state.compact{margin:4px 0 0}
+.dp-night{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #ececef;margin-top:4px}
+.dp-night > div{flex:1}
+.dp-night b{font-weight:500}
+.dp-chips{display:flex;gap:6px;flex-wrap:wrap;padding:6px 0 2px;border-top:1px solid #ececef}
+.dp-chip{height:24px;padding:0 10px;border-radius:12px;border:1px solid #dcdce0;background:#fff;cursor:default}
+.dp-chip:hover{background:#f3f3f6}
+.dp-chip.on{background:#e8f1ff;border-color:#0a84ff;color:#0060c8}
+.dp-view{flex:1;min-height:0;display:flex}
+.dp-main{flex:1;min-width:0;overflow:auto;padding:6px 20px 20px}
+.dp-main .sec-h{padding-left:0}
+.dp-arr{display:flex;align-items:center;gap:14px;border:1px solid #ececef;border-radius:10px;background:#f7f7f9;padding:12px;min-height:200px}
+.dp-canvas{position:relative;flex:none}
+.dp-rect{position:absolute;border:1.5px solid #c9c9ce;border-radius:5px;background:#fff;padding:6px 8px;text-align:left;overflow:hidden;cursor:default;display:flex;flex-direction:column;gap:2px;font-size:11px;line-height:1.25}
+.dp-rect:hover{border-color:#9bb8e6}
+.dp-rect.sel{border-color:#0a84ff;box-shadow:0 0 0 3px rgba(10,132,255,.2)}
+.dp-rect b{font-weight:600;font-size:11.5px}
+.dp-rect.nodc{background:#f0f0f2}
+.dp-arr .state{margin:0;flex:1}
+.dp-save{display:flex;gap:8px;margin:2px 0 8px}
+.dp-save .field{flex:1}
+.dp-plist{border:1px solid #ececef;border-radius:10px;overflow:hidden;min-height:60px;display:flex;flex-direction:column}
+.dp-plist .row:last-child{border-bottom:0}
+.dp-plist .state{margin:14px auto}
+.dp-nightrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid #ececef;border-bottom:1px solid #ececef;margin:10px 0 4px}
+.dp-nightrow > div{flex:1}
+.dp-nightrow b{font-weight:500}
+.dp-pane-h{font-size:12px;margin:2px 0 6px;color:#555;font-weight:600}
+.dp-pane .dp-row input[type=range]{width:100%}
+.dp-prow{cursor:pointer}
+.dp-prow .t{display:flex;align-items:center;gap:8px}
+.dp-applied{font-size:11px}
