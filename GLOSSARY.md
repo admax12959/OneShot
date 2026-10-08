@@ -31,7 +31,7 @@ One kept copy in clipboard history: its content, its kind (text, JSON, link, ima
 _Avoid_: Item, entry, snippet
 
 **Clipboard history**:
-The ordered set of clips OneShot keeps. It's bounded by the history size; pinned clips are never pruned.
+The ordered set of clips OneShot keeps. It's bounded by the history size and an image budget; pinned clips are never pruned.
 _Avoid_: Clipboard log, paste history
 
 **Source**:
