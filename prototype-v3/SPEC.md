@@ -64,6 +64,52 @@ Feature definition:
   view:    {title, mount(el, params)} }    // management view; rail item
 ```
 
+### v3 shell additions (absorbs the native-readiness review, G1–G10)
+
+```
+Windows / activation (G10)
+OS.app.active() / OS.app.activate(app) / OS.app.policy() -> 'regular' | 'accessory' / OS.app.keyWindow()
+  OneShot is an agent app. Opening #win or #prefwin activates OneShot (menu bar shows OneShot menus); closing the
+  last one returns to the previous app. Floats and popovers never activate OneShot (non-activating panels).
+OS.open(fid, params)                  management window (#win) + rail; one instance, never rebuilt
+OS.openPrefs(pane)                    Preferences window (#prefwin): General · Privacy · Hotkeys · Storage · one pane per feature
+OS.closeWindow('#win'|'#prefwin')
+OS.responder(el, {new, undo, copy, delete, selectAll, find})   each {label?, enabled?():bool, run()}; drives the
+                                      Edit/File menus and ⌘ key equivalents while #win is key (NSMenuItemValidation)
+OS.ui.subtitle(text)                  window subtitle (counts) ; OS.ui.toolbarTools() -> toolbar element for extra buttons
+
+Store (G1)
+OS.data[id] is loaded from the store when present, else seed(). Every OS.commit is saved (coalesced, flushed on quit).
+OS.store.path(id) / info(id) -> {at, bytes} / line(def) / restored[id] / reset()
+feature def: about:'one line', store:{count(data)->n, unit:'clips', rule()->'Keeps 50 unpinned clips'}
+init() runs after load: reset transient runtime fields there (e.g. Vault locks at launch).
+Scenario '<id>.empty' never overwrites stored data.
+
+Permissions (G5)
+OS.perm.state(id) -> 'granted' | 'missing' | 'approval' | 'outdated' (helper) | 'unsupported' (helper)
+OS.perm.has(id) is state === 'granted'; OS.ui.grant(el, id, purpose) renders the right card for each state.
+
+Hotkeys (G4)
+OS.hotkey.validate(full, combo) -> {ok} | {err:'needsModifier'|'shiftOnly'|'reserved'|'menu'|'conflict', by?, owner?}
+OS.hotkey.set(full, combo) / reset(full) / message(err)
+
+Pasteboard (G3)
+OS.pasteboard.copy(item) -> {recorded, clipId, concealed, types, tooLarge}; text over OS.pasteboard.historyMax reaches the pasteboard but not history; Vault copies are stamped
+org.nspasteboard.ConcealedType + TransientType (scenario 'pb.unstamped' simulates the writer bug).
+
+Background work (G8)
+OS.bg(key, fn, ms?) -> Promise; latest call per key wins, earlier ones never resolve (cancelled Task).
+
+Authentication (G2)
+OS.system.authenticate(reason, {fallback:'password'}?) -> {ok, method:'biometry'|'password'} | {ok:false, reason:'nomatch'|'cancel'}
+  device-owner policy: Touch ID, with the Mac login password as the system fallback. No app master password.
+
+States / notes
+OS.ui.state kinds add 'nomatch' and 'info'; options detail (mono footnote) and note.
+OS.ui.skeleton(el, rows) list placeholder. OS.ui.note(text) -> contract chip, visible with Scenarios → Show native contract notes.
+OS.ui.toast(text, {sub, icon, kind:'failure'|'concealed', action, note, ms})
+```
+
 ### Handoff contracts
 
 | Name | Payload | Arrival |

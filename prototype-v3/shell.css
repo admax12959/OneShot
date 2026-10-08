@@ -275,3 +275,8 @@ body.notes .state .k{display:block;font-size:10px;font-weight:600;letter-spacing
 .pane .prow{padding:8px 0;min-height:0;flex-wrap:wrap;border-bottom:1px solid var(--sep2)}
 .pane .prow .pc input[type=range]{width:100px}
 .pane h3{font-size:12px;margin:4px 0 2px;color:rgba(0,0,0,.7)}
+/* side panes: a slider row puts its control under the label instead of squeezing the description */
+.pane .prow:has(input[type=range]) .pl{flex:1 1 100%}
+.pane .prow:has(input[type=range]) .pc{flex:1 1 100%}
+.pane .prow:has(input[type=range]) .pc input[type=range]{flex:1;width:auto!important}
+.toast.stack{flex-wrap:wrap}.toast.stack .t{flex:1 1 calc(100% - 44px)}.toast.stack > .btn{margin-left:40px}

@@ -1,83 +1,107 @@
-/* Vault: Autofill (runtime) + Vault view. One source: OS.data.vault. Contract: SPEC.md */
+/* Vault: Autofill (runtime) + Vault view. One source: OS.data.vault. Contract: SPEC.md (G2, G3).
+   No app password: unlocking is device-owner authentication (Touch ID, the Mac login password as the system fallback).
+   Secrets are never drawn: no reveal, a fixed-length mask, write-only password changes. Copies go out concealed. */
 (function () {
   const { esc, h } = OS, icon = OS.ui.icon;
   const D = () => OS.data.vault;
   const hostOf = (u) => String(u || '').trim().replace(/^[a-z]+:\/\//i, '').replace(/^www\./i, '').split(/[\/?#]/)[0].toLowerCase();
-  const MASTER = 'oneshot';
+  const MASK = '••••••••••••';    // same length for every password: the real length is never shown
+  const BLOCKER = 'Release blocker: secrets live in Keychain (SecAccessControl .biometryCurrentSet / .userPresence) + LAContext; this simulation keeps them in the store';
   let quiet = false;              // refreshing the idle timer must not redraw anything
   let filling = false;            // our own fill() focuses the password field; don't reopen Autofill
+  let method = null;              // how the current unlock happened: 'biometry' | 'password'
 
   const touch = () => { quiet = true; try { OS.commit('vault', (d) => { d.unlockedAt = OS.now(); }); } finally { quiet = false; } };
-  const lock = () => OS.commit('vault', (d) => { d.locked = true; });
-  const unlock = () => OS.commit('vault', (d) => { d.locked = false; d.unlockedAt = OS.now(); });
-  const lockMs = () => { const m = OS.pref('vault.lockAfter'); return m === 'never' ? Infinity : m * 60000; };
+  const lock = () => { method = null; OS.commit('vault', (d) => { d.locked = true; d.unlockedAt = 0; }); };
+  const unlock = (m) => { method = m; OS.commit('vault', (d) => { d.locked = false; d.unlockedAt = OS.now(); }); };
+  const lockMin = () => OS.pref('vault.lockAfter');
+  const lockMs = () => (lockMin() === 'never' ? Infinity : lockMin() * 60000);
+  const lockLine = () => (lockMin() === 'never' ? 'Stays unlocked until you lock it or quit' : `Locks after ${lockMin()} min without use and at quit`);
   const avatar = (t) => `<span class="vt-av">${esc((t || '?').trim().charAt(0).toUpperCase())}</span>`;
+  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
-  /* ---------- the one locked / Touch ID / failed / password flow (float and view) ---------- */
+  /* ---------- device-owner authentication: one flow for the float and the view ---------- */
+  const REASON = 'OneShot is trying to unlock Vault.';
+  function authenticate(reason, usePassword) {
+    return OS.system.authenticate(reason, usePassword ? { fallback: 'password' } : {});
+  }
   function authUI(el, o = {}) {
-    let st = 'locked', err = '';
+    let st = 'locked';
     const compact = !!o.compact;
-    async function touchId() {
-      const r = await OS.system.touchId('OneShot is trying to unlock Vault');
-      if (r.ok) return unlock();
+    async function go(usePassword) {
+      st = 'prompt'; draw();
+      const r = await authenticate(REASON, usePassword);
+      if (r.ok) return unlock(r.method);
       st = r.reason === 'nomatch' ? 'failed' : 'locked'; draw();
     }
     let first = true;
     function draw() {
       if (!first && !el.isConnected) return;
       first = false;
-      const useTouch = OS.pref('vault.touchId');
-      if (st === 'failed' && useTouch) {
-        return OS.ui.state(el, { kind: 'failure', compact, title: 'Touch ID didn’t match', body: 'Try again, or use your master password.', action: { label: 'Try again', run: touchId }, action2: { label: 'Use password', run: () => { st = 'password'; err = ''; draw(); } } });
+      if (st === 'prompt') return OS.ui.state(el, { kind: 'locked', compact, icon: 'i-finger', title: 'Waiting for Touch ID…', body: 'Touch the sensor, or choose Use Password in the dialog.' });
+      if (st === 'failed') {
+        return OS.ui.state(el, { kind: 'failure', compact, icon: 'i-finger', title: 'Touch ID didn’t match', body: compact ? 'Try again or use your login password.' : 'Try again, or use the password you use to log in to this Mac.',
+          action: { label: 'Try Again', run: () => go(false) }, action2: { label: 'Use Password…', run: () => go(true) }, note: compact ? '' : 'LAError.authenticationFailed → stay locked; fallback = device-owner password' });
       }
-      if (st === 'password' || !useTouch) {
-        el.innerHTML = `<div class="state locked ${compact ? 'compact' : ''}"><div class="k">Locked</div>${icon('i-lock', 'xl')}<h3>Enter your master password</h3>
-          <p>${useTouch ? 'Use the password instead of Touch ID.' : 'Touch ID is off in Vault settings.'}</p>
-          <input class="field vt-pw" type="password" placeholder="Master password" data-pw autocomplete="off"><div class="vt-err" data-err>${esc(err)}</div>
-          <button class="btn primary" data-unlock>Unlock</button>${useTouch ? '<button class="btn ghost" data-usetouch>Use Touch ID</button>' : ''}</div>`;
-        const pw = el.querySelector('[data-pw]');
-        const go = () => { if (pw.value === MASTER) unlock(); else { err = 'Incorrect password. Try again.'; el.querySelector('[data-err]').textContent = err; pw.select(); } };
-        el.querySelector('[data-unlock]').onclick = (e) => { e.stopPropagation(); go(); };
-        pw.onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); go(); } };
-        const tb = el.querySelector('[data-usetouch]'); if (tb) tb.onclick = (e) => { e.stopPropagation(); st = 'locked'; draw(); };
-        setTimeout(() => pw.focus(), 0);
-        return;
-      }
-      OS.ui.state(el, { kind: 'locked', compact, title: 'Vault is locked', body: 'Unlock to fill logins and manage entries.', action: { label: 'Unlock with Touch ID', run: touchId } });
+      OS.ui.state(el, { kind: 'locked', compact, title: 'Vault is locked', body: compact ? 'Unlock to fill this login.' : 'Unlock with Touch ID or your Mac login password to fill and manage logins.',
+        action: { label: 'Unlock', run: () => go(false) }, detail: compact ? '' : lockLine(), note: compact ? '' : BLOCKER });
     }
     draw();
   }
 
-  /* ---------- Autofill float ---------- */
+  /* ---------- copying: always through the PasteboardWriter, and the writer's result is checked ---------- */
+  function copySecret(e, k) {
+    const r = OS.pasteboard.copy({ kind: 'text', text: e[k], source: 'Vault' });
+    touch();
+    if (r.concealed) {
+      OS.ui.toast('Copied · concealed', { kind: 'concealed', icon: 'i-lock', sub: 'Not kept in Clipboard history. Clipboard apps that respect markers skip it.', note: 'org.nspasteboard.ConcealedType + TransientType stamped and read back', ms: 4000 });
+    } else {
+      OS.ui.toast('Copied without the concealed marker', { kind: 'failure', sub: `OneShot checked its own copy and the ${k === 'password' ? 'password' : 'username'} went out unmarked. Other clipboard apps may keep it.`,
+        note: `PasteboardWriter verifies its own write → ConcealedType missing (${r.types.join(', ')})`, ms: 8000 });
+    }
+    return r;
+  }
+  async function fillEntry(e) {
+    const host = OS.host.safari.host();
+    if (OS.pref('vault.confirmFill')) {
+      const r = await OS.system.authenticate(`OneShot is trying to fill your login for ${host}.`);
+      if (!r.ok) { if (r.reason === 'nomatch') OS.ui.toast('Not filled', { kind: 'failure', sub: 'Touch ID didn’t match. Nothing was typed.' }); return false; }
+    }
+    filling = true; const ok = OS.host.safari.fill(e.username, e.password); filling = false;
+    touch();
+    if (ok) OS.ui.toast('Filled · nothing copied', { icon: 'i-key', sub: `${e.title}. Typed into the page; not added to Clipboard history.`, note: 'Typed through Accessibility; no pasteboard write' });
+    return ok;
+  }
+
+  /* ---------- Autofill float (non-activating; Safari stays frontmost) ---------- */
   function openAutofill(field) {
     OS.host.safari.front();
     const host = OS.host.safari.host(), r = field.getBoundingClientRect();
     const el = h('<div class="vt-af"></div>');
     let idx = 0, rows = [];
     const header = () => `<div class="pop-h">${icon('i-key', 's')}Vault<span class="muted">${esc(host)}</span></div>`;
-    const fill = (e) => {
-      filling = true; const ok = OS.host.safari.fill(e.username, e.password); filling = false;
-      touch(); OS.ui.closeFloat();
-      if (ok) OS.ui.toast('Filled · not added to Clipboard history', { icon: 'i-key', sub: e.title });
-    };
+    const fill = (e) => { OS.ui.closeFloat(); fillEntry(e); };
     function draw() {
       if (!OS.perm.has('access')) { el.innerHTML = '<div data-g></div>'; rows = []; return OS.ui.grant(el.querySelector('[data-g]'), 'access', 'Autofill needs to type into the login fields of other apps.'); }
-      if (OS.scn('vault.fail')) { el.innerHTML = header() + '<div data-a></div>'; rows = []; return OS.ui.state(el.querySelector('[data-a]'), { kind: 'failure', compact: true, title: 'Couldn’t load Vault', body: 'The local store didn’t respond. Nothing was lost.', action: { label: 'Try again', run: () => { if (OS.scn('vault.fail')) OS.ui.toast('Still can’t reach the store', { icon: 'i-key', ms: 2000 }); else draw(); } } }); }
+      if (OS.scn('vault.fail')) { el.innerHTML = header() + '<div data-a></div>'; rows = []; return OS.ui.state(el.querySelector('[data-a]'), { kind: 'failure', compact: true, title: 'Couldn’t load Vault', body: 'The local store didn’t respond. Nothing was lost.', action: { label: 'Try Again', run: () => { if (OS.scn('vault.fail')) OS.ui.toast('Still can’t reach the store', { kind: 'failure', icon: 'i-key', ms: 2000 }); else draw(); } } }); }
       if (D().locked) { el.innerHTML = header() + '<div data-a></div>'; rows = []; return authUI(el.querySelector('[data-a]'), { compact: true }); }
-      touch();
       rows = D().entries.filter((e) => hostOf(e.url) === host);
       if (!rows.length) {
         el.innerHTML = header() + '<div data-a></div>';
-        return OS.ui.state(el.querySelector('[data-a]'), { kind: 'empty', compact: true, title: `No login for ${host}`, body: 'Add one to Vault and it is offered here next time.', action: { label: 'Add to Vault', run: () => OS.open('vault', { create: { url: host } }) } });
+        return OS.ui.state(el.querySelector('[data-a]'), { kind: 'empty', compact: true, icon: 'i-key', title: `No login for ${host}`, body: 'Add one to Vault and it’s offered here next time.', action: { label: 'Add to Vault…', run: () => OS.open('vault', { create: { url: host } }) } });
       }
       idx = Math.min(idx, rows.length - 1);
-      el.innerHTML = header() + rows.map((e, i) => `<div class="row vt-row ${i === idx ? 'sel' : ''}" data-i="${i}">${avatar(e.title)}<div class="t"><b>${esc(e.title)}</b><div class="m">${esc(e.username)}</div></div>
-        <button class="btn ghost" data-v="${e.id}" title="Open in Vault">Open in Vault</button></div>`).join('') +
-        '<div class="pop-f"><span class="muted vt-hint"><span class="kbd">↑↓</span> choose <span class="kbd">↵</span> fill <span class="kbd">Esc</span> close</span></div>';
-      el.querySelectorAll('[data-i]').forEach((row) => (row.onclick = () => fill(rows[+row.dataset.i])));
+      el.innerHTML = header() + `<div class="vt-afl">${rows.map((e, i) => `<div class="vt-row ${i === idx ? 'sel' : ''}" data-i="${i}">${avatar(e.title)}<div class="t"><b>${esc(e.title)}</b><div class="m">${esc(e.username)}</div></div>
+        <button class="btn ghost vt-open" data-v="${e.id}" title="Open in Vault">${icon('i-chevr', 's')}</button></div>`).join('')}</div>` +
+        `<div class="vt-aff"><span><span class="kbd">↑↓</span> choose</span><span><span class="kbd">↵</span> fill</span><span><span class="kbd">esc</span> close</span><span class="grow"></span><span class="muted">Nothing is copied</span></div>`;
+      el.querySelectorAll('[data-i]').forEach((row) => {
+        row.onclick = () => fill(rows[+row.dataset.i]);
+        row.onmouseenter = () => { idx = +row.dataset.i; el.querySelectorAll('.vt-row').forEach((o) => o.classList.toggle('sel', o === row)); };
+      });
       el.querySelectorAll('[data-v]').forEach((b) => (b.onclick = (e) => { e.stopPropagation(); OS.open('vault', { select: b.dataset.v }); }));
     }
     draw();
+    if (!D().locked) touch();
     OS.ui.float({
       x: r.left, y: r.bottom + 4, above: r.top, el, cls: 'vt-float',
       onKey: (e) => {
@@ -102,33 +126,43 @@
     const e = D().entries.find((x) => x.id === id); if (!e) return;
     OS.host.safari.front();
     if (hostOf(OS.host.safari.host()) !== url) return OS.ui.toast(`Open ${url} in Safari to fill`, { icon: 'i-key', ms: 3000 });
-    filling = true; const ok = OS.host.safari.fill(e.username, e.password); filling = false;
-    touch();
-    if (ok) OS.ui.toast('Filled · not added to Clipboard history', { icon: 'i-key', sub: e.title });
+    fillEntry(e);
   }
 
   /* ---------- Vault view ---------- */
   function vaultView(el, params) {
-    let sel = null, draft = null, q = '', reveal = false, dirty = false, mode = null, pending = params || {};
+    let sel = null, draft = null, q = '', dirty = false, changing = false, mode = null, pending = params || {};
     let body, cd;
     const byId = (id) => D().entries.find((e) => e.id === id);
     const shown = () => D().entries.filter((e) => !q || (e.title + ' ' + e.url + ' ' + e.username).toLowerCase().includes(q.toLowerCase())).sort((a, b) => a.title.localeCompare(b.title));
-    const newDraft = (url, fromAutofill) => { draft = { title: fromAutofill ? url : '', url: url || '', username: '', password: '', note: '', fromAutofill: !!fromAutofill }; sel = null; dirty = false; reveal = false; };
+    const current = () => (!draft && sel && byId(sel)) || null;
+    const newDraft = (url, fromAutofill) => { draft = { title: fromAutofill ? url : '', url: url || '', username: '', note: '', fromAutofill: !!fromAutofill }; sel = null; dirty = false; changing = false; };
+    const startNew = () => { if (D().locked) return; newDraft(''); touch(); drawBody(); const t = body.querySelector('[data-f=title]'); if (t) t.focus(); };
+
+    /* window toolbar: New Login (icon) lives next to the Preferences button */
+    const tools = OS.ui.toolbarTools();
+    let newBtn = tools && tools.querySelector('[data-new]');
+    if (tools && !newBtn) { newBtn = h(`<button class="btn tb" data-new title="New Login (⌘N)" aria-label="New Login">${icon('i-plus')}</button>`); tools.insertBefore(newBtn, tools.firstChild); }
+    if (newBtn) newBtn.onclick = startNew;
 
     function cdText() {
-      if (lockMs() === Infinity) return 'Never auto-locks';
+      if (lockMs() === Infinity) return 'Doesn’t lock on its own';
       const s = Math.max(0, Math.ceil((lockMs() - (OS.now() - D().unlockedAt)) / 1000));
       return `Locks in ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
     }
+    function subtitle() { OS.ui.subtitle(D().locked ? 'Locked' : `${plural(D().entries.length, 'login')} · unlocked`); }
     function render() {
-      if (D().locked) { mode = 'locked'; return authUI(el); }
+      subtitle();
+      if (newBtn) newBtn.disabled = !!D().locked;
+      if (D().locked) { mode = 'locked'; body = cd = null; el.innerHTML = '<div class="vt-lock"></div>'; return authUI(el.firstChild); }
       mode = 'open';
       if (pending.create) { newDraft(pending.create.url, true); } else if (pending.select && byId(pending.select)) { sel = pending.select; draft = null; }
       pending = {};
       if (!sel && !draft && D().entries.length) sel = shown()[0] ? shown()[0].id : D().entries[0].id;
-      el.innerHTML = `<div class="toolbar"><input class="search" placeholder="Search logins" data-q style="width:220px" value="${esc(q)}">
-        <button class="btn" data-new>${icon('i-plus', 's')}New</button><span class="grow"></span><span class="muted vt-cd" data-cd></span>
-        <button class="btn" data-lock>${icon('i-lock', 's')}Lock now</button></div><div class="split" data-body></div>`;
+      el.innerHTML = `<div class="toolbar"><input class="search" placeholder="Search" aria-label="Search logins" data-q style="width:220px" value="${esc(q)}">
+        <span class="grow"></span><span class="muted vt-cd" data-cd title="${esc(lockLine())}"></span>
+        <button class="btn" data-lock title="Lock Vault now">${icon('i-lock', 's')}Lock</button></div><div class="split" data-body></div>
+        <div class="vt-foot"><span>${icon('i-lock', 's')} Passwords are stored in your keychain</span><span class="muted">· unlocked with ${method === 'password' ? 'your login password' : 'Touch ID'}</span><span class="grow"></span>${OS.ui.note(BLOCKER)}</div>`;
       body = el.querySelector('[data-body]'); cd = el.querySelector('[data-cd]'); cd.textContent = cdText();
       el.querySelector('[data-q]').oninput = (e) => { q = e.target.value; drawList(); };
       el.onkeydown = (e) => {
@@ -137,88 +171,111 @@
         if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && v.length) {
           e.preventDefault();
           const i = v.findIndex((x) => x.id === sel), n = Math.max(0, Math.min(v.length - 1, i + (e.key === 'ArrowDown' ? 1 : -1)));
-          sel = v[n].id; dirty = false; reveal = false; touch(); drawList(); drawDetail();
+          sel = v[n].id; dirty = false; changing = false; touch(); drawList(); drawDetail();
           const l = body.querySelector('.vt-list'); if (l) l.focus({ preventScroll: true });
         } else if (e.key === 'Enter' && !e.target.closest('button') && byId(sel)) { e.preventDefault(); const t = body.querySelector('[data-f=title]'); if (t) t.focus(); }
       };
-      el.querySelector('[data-new]').onclick = () => { newDraft(''); touch(); drawBody(); };
       el.querySelector('[data-lock]').onclick = lock;
       drawBody();
     }
     function drawBody() {
       if (!D().entries.length && !draft) {
-        return OS.ui.state(body, { kind: 'empty', title: 'No logins yet', body: 'Add a login and Autofill offers it on that site.', action: { label: 'New entry', run: () => { newDraft(''); drawBody(); } } });
+        return OS.ui.state(body, { kind: 'empty', icon: 'i-key', title: 'No logins yet', body: 'Add a login and Autofill offers it on that site.', detail: 'Passwords are stored in your keychain', action: { label: 'New Login', run: startNew } });
       }
       body.innerHTML = '<div class="list vt-list" tabindex="0" aria-label="Logins"></div><div class="detail vt-detail"></div>';
       drawList(); drawDetail();
       if (!draft) body.querySelector('.vt-list').focus({ preventScroll: true });
     }
     function drawList() {
-      const list = body.querySelector('.vt-list'); if (!list) return;
+      const list = body && body.querySelector('.vt-list'); if (!list) return;
       const v = shown();
-      list.innerHTML = (draft ? `<div class="row sel">${avatar(draft.title || '+')}<div class="t"><b>${esc(draft.title || 'New entry')}</b><div class="m">${esc(draft.url || 'Not saved yet')}</div></div></div>` : '') +
-        v.map((e) => `<div class="row ${e.id === sel && !draft ? 'sel' : ''}" data-id="${e.id}">${avatar(e.title)}<div class="t"><b>${esc(e.title)}</b><div class="m">${esc(e.url)} · ${esc(e.username)}</div></div></div>`).join('') +
-        (!v.length && !draft ? '<div class="muted" style="padding:16px">No logins match.</div>' : '');
-      list.querySelectorAll('[data-id]').forEach((r) => (r.onclick = () => { sel = r.dataset.id; draft = null; dirty = false; reveal = false; touch(); drawList(); drawDetail(); }));
+      if (!v.length && !draft) {
+        return OS.ui.state(list, { kind: 'nomatch', compact: true, title: `No logins match “${q.trim()}”`, body: 'Search looks in titles, websites and usernames.', action: { label: 'Clear Search', run: () => { q = ''; el.querySelector('[data-q]').value = ''; drawList(); drawDetail(); } } });
+      }
+      if (!draft && !v.some((e) => e.id === sel)) { sel = v[0].id; drawDetail(); }
+      list.innerHTML = (draft ? `<div class="row vt-lr sel">${avatar(draft.title || '+')}<div class="t"><b>${esc(draft.title || 'New Login')}</b><div class="m">${esc(draft.url || 'Not saved yet')}</div></div></div>` : '') +
+        v.map((e) => `<div class="row vt-lr ${e.id === sel && !draft ? 'sel' : ''}" data-id="${e.id}">${avatar(e.title)}<div class="t"><b>${esc(e.title)}</b><div class="m">${esc(e.username)} · ${esc(e.url)}</div></div></div>`).join('');
+      list.querySelectorAll('[data-id]').forEach((r) => (r.onclick = () => { sel = r.dataset.id; draft = null; dirty = false; changing = false; touch(); drawList(); drawDetail(); }));
       const s = list.querySelector('.sel'); if (s) s.scrollIntoView({ block: 'nearest' });
     }
     function drawDetail() {
-      const pane = body.querySelector('.vt-detail'); if (!pane) return;
+      const pane = body && body.querySelector('.vt-detail'); if (!pane) return;
       const e = draft || byId(sel);
-      if (!e) { pane.innerHTML = '<div class="muted">Select a login.</div>'; return; }
+      if (!e) { OS.ui.state(pane, { kind: 'empty', compact: true, title: 'No login selected', body: 'Pick a login to see it here.' }); return; }
       const isNew = !!draft;
-      pane.innerHTML = `<div class="vt-form"><div class="vt-fh">${avatar(e.title || '+')}<h2>${esc(e.title || 'New entry')}</h2></div>
-        <label>Title<input class="field" data-f="title" value="${esc(e.title)}" placeholder="Site name"></label>
-        <label>Website<input class="field" data-f="url" value="${esc(e.url)}" placeholder="site.com"></label>
-        <label>Username<div class="vt-in"><input class="field" data-f="username" value="${esc(e.username)}" autocomplete="off"><button class="btn" data-cp="username" title="Copy username">${icon('i-copy', 's')}Copy</button></div></label>
-        <label>Password<div class="vt-in"><input class="field" data-f="password" type="${reveal ? 'text' : 'password'}" value="${esc(e.password)}" autocomplete="off">
-          <button class="btn icon" data-eye title="${reveal ? 'Hide' : 'Show'} password">${icon('i-eye', 's')}</button><button class="btn" data-cp="password" title="Copy password">${icon('i-copy', 's')}Copy</button></div></label>
-        <label>Note<textarea class="field" data-f="note" rows="3">${esc(e.note)}</textarea></label>
+      /* the password row never carries the secret: a fixed mask, or an empty write-only field */
+      const pwRow = isNew
+        ? `<input class="field" data-f="password" type="password" placeholder="Password" autocomplete="new-password">`
+        : changing
+          ? `<input class="field" data-f="password" type="password" placeholder="New password" autocomplete="new-password"><button class="btn" data-pwcancel>Cancel</button>`
+          : `<span class="vt-mask" aria-label="Password, hidden">${MASK}</span><button class="btn" data-cp="password" title="Copy password (concealed)">${icon('i-copy', 's')}Copy</button><button class="btn" data-change>Change Password…</button>`;
+      pane.innerHTML = `<div class="vt-form"><div class="vt-fh">${avatar(e.title || '+')}<div><h2>${esc(e.title || 'New Login')}</h2><div class="muted small">${isNew ? (e.fromAutofill ? 'From Autofill · website filled in' : 'Not saved yet') : `Updated ${OS.ago(e.at) === 'now' ? 'just now' : OS.ago(e.at) + ' ago'}`}</div></div></div>
+        <div class="vt-grid">
+          <label for="vt-title">Title</label><input id="vt-title" class="field" data-f="title" value="${esc(e.title)}" placeholder="Site name">
+          <label for="vt-url">Website</label><input id="vt-url" class="field" data-f="url" value="${esc(e.url)}" placeholder="site.com">
+          <label for="vt-user">Username</label><div class="vt-in"><input id="vt-user" class="field" data-f="username" value="${esc(e.username)}" autocomplete="off">${isNew ? '' : `<button class="btn" data-cp="username" title="Copy username (concealed)">${icon('i-copy', 's')}Copy</button>`}</div>
+          <label>Password</label><div class="vt-in">${pwRow}</div>
+          <span></span><div class="vt-hint">${isNew || changing ? 'Write-only. OneShot never shows a saved password.' : 'Hidden. Copy goes out concealed; Autofill types it without copying.'}${OS.ui.note(BLOCKER)}</div>
+          <label for="vt-note">Note</label><textarea id="vt-note" class="field" data-f="note" rows="3">${esc(e.note)}</textarea>
+        </div>
         <div class="vt-err" data-err></div>
-        <div class="vt-acts"><button class="btn primary" data-save ${isNew ? '' : 'disabled'}>${isNew ? 'Add entry' : 'Save'}</button>${isNew ? '<button class="btn" data-cancel>Cancel</button>' : ''}<span class="grow"></span>${isNew ? '' : '<button class="btn danger" data-del>' + icon('i-trash', 's') + 'Delete</button>'}</div>
-        ${isNew ? '' : `<div class="muted vt-up">Updated ${OS.ago(e.at) === 'now' ? 'just now' : OS.ago(e.at) + ' ago'}</div>`}</div>`;
-      const val = (k) => pane.querySelector(`[data-f=${k}]`).value;
+        <div class="vt-acts"><span class="grow"></span>${isNew ? '<button class="btn" data-cancel>Cancel</button>' : '<button class="btn" data-del>' + icon('i-trash', 's') + 'Delete…</button>'}<button class="btn primary" data-save ${isNew || changing ? '' : 'disabled'}>${isNew ? 'Add Login' : 'Save'}</button></div></div>`;
+      const val = (k) => { const n = pane.querySelector(`[data-f=${k}]`); return n ? n.value : ''; };
       const save = pane.querySelector('[data-save]');
       pane.querySelectorAll('[data-f]').forEach((i) => (i.oninput = () => { dirty = true; save.disabled = false; }));
-      pane.querySelector('[data-eye]').onclick = () => { reveal = !reveal; const p = pane.querySelector('[data-f=password]'); p.type = reveal ? 'text' : 'password'; pane.querySelector('[data-eye]').title = (reveal ? 'Hide' : 'Show') + ' password'; };
-      pane.querySelectorAll('[data-cp]').forEach((b) => (b.onclick = () => {
-        const k = b.dataset.cp, r = OS.pasteboard.copy({ kind: 'text', text: val(k), source: 'Vault' }); touch();
-        OS.ui.toast(r.recorded ? 'Copied' : 'Copied · not added to Clipboard history', { icon: 'i-key', sub: k === 'password' ? 'Password' : 'Username', ms: 3000 });
-      }));
+      pane.querySelectorAll('[data-cp]').forEach((b) => (b.onclick = () => copySecret(byId(sel), b.dataset.cp)));
+      const ch = pane.querySelector('[data-change]'); if (ch) ch.onclick = () => { changing = true; touch(); drawDetail(); pane.querySelector('[data-f=password]').focus(); };
+      const pc = pane.querySelector('[data-pwcancel]'); if (pc) pc.onclick = () => { changing = false; drawDetail(); };
       save.onclick = () => {
         const url = hostOf(val('url')), title = val('title').trim() || url;
         if (!title) return (pane.querySelector('[data-err]').textContent = 'Add a title or a website.');
-        const patch = { title, url, username: val('username'), password: val('password'), note: val('note'), at: OS.now() };
-        dirty = false;
+        const pw = val('password');
+        if (changing && !pw) return (pane.querySelector('[data-err]').textContent = 'Type the new password, or Cancel.');
+        const patch = { title, url, username: val('username'), note: val('note'), at: OS.now() };
+        if (isNew || pw) patch.password = pw;
+        const pwChanged = !isNew && !!pw;
+        dirty = false; changing = false;
         if (isNew) {
           const id = OS.id('v'), fromAf = e.fromAutofill; OS.commit('vault', (d) => d.entries.unshift(Object.assign({ id }, patch))); draft = null; sel = id; q = ''; el.querySelector('[data-q]').value = ''; drawBody();
           if (fromAf && url && hostOf(OS.host.safari.host()) === url) {
-            OS.ui.toast(`Saved · Fill on ${url}`, { icon: 'i-key', sub: title, ms: 6000, action: { label: 'Fill now', run: () => fillNow(id, url) } });
+            OS.ui.toast(`Saved · Fill on ${url}`, { icon: 'i-key', sub: title, ms: 6000, action: { label: 'Fill Now', run: () => fillNow(id, url) } });
           } else OS.ui.toast('Added to Vault', { icon: 'i-key', sub: title, ms: 2500 });
-        }
-        else { OS.commit('vault', () => Object.assign(byId(sel), patch)); drawList(); drawDetail(); OS.ui.toast('Saved', { icon: 'i-key', sub: title, ms: 2000 }); }
+        } else { OS.commit('vault', () => Object.assign(byId(sel), patch)); drawList(); drawDetail(); OS.ui.toast(pwChanged ? 'Password changed' : 'Saved', { icon: 'i-key', sub: title, ms: 2000 }); }
         touch();
       };
       const cancel = pane.querySelector('[data-cancel]');
-      if (cancel) cancel.onclick = () => { draft = null; dirty = false; sel = D().entries.length ? shown()[0].id : null; drawBody(); };
-      const del = pane.querySelector('[data-del]');
-      if (del) del.onclick = async () => {
-        if (!(await OS.system.confirm(`Delete “${e.title}”?`, 'This login is removed from Vault and Autofill.', 'Delete', true))) return;
-        const v = shown(), i = v.findIndex((x) => x.id === e.id);
-        OS.commit('vault', (d) => (d.entries = d.entries.filter((x) => x.id !== e.id)));
-        const w = shown(); sel = w.length ? w[Math.min(i, w.length - 1)].id : null; dirty = false; drawBody(); touch();
-      };
+      if (cancel) cancel.onclick = () => { draft = null; dirty = false; sel = D().entries.length ? (shown()[0] || D().entries[0]).id : null; drawBody(); };
+      const del = pane.querySelector('[data-del]'); if (del) del.onclick = () => deleteEntry(e);
     }
+    async function deleteEntry(e) {
+      if (!e) return;
+      if (!(await OS.system.confirm(`Delete “${e.title}”?`, 'This login is removed from Vault and Autofill.', 'Delete', true))) return;
+      const v = shown(), i = v.findIndex((x) => x.id === e.id);
+      OS.commit('vault', (d) => (d.entries = d.entries.filter((x) => x.id !== e.id)));
+      const w = shown(); sel = w.length ? w[Math.min(Math.max(0, i), w.length - 1)].id : null; dirty = false; changing = false;
+      if (body && body.isConnected) drawBody(); touch();
+    }
+
+    /* File / Edit menus: New Login, Copy Username (never the password via ⌘C), Delete, Find */
+    const open = () => mode === 'open' && !D().locked;
+    OS.responder(el, {
+      new: { label: 'New Login', enabled: open, run: startNew },
+      copy: { label: 'Copy Username', enabled: () => open() && !!current(), run: () => copySecret(current(), 'username') },
+      delete: { label: 'Delete Login…', enabled: () => open() && !!current(), run: () => deleteEntry(current()) },
+      find: { label: 'Find Login…', enabled: open, run: () => { const s = el.querySelector('[data-q]'); s.focus(); s.select(); } },
+    });
+
     OS.watch(el, 'change:vault prefs', (p, n) => {
       if (quiet) return;
       if (D().locked !== (mode === 'locked')) return render();
+      subtitle();
       if (mode === 'locked') { if (n === 'prefs') render(); return; }
       if (cd) cd.textContent = cdText();
       if (!body || !body.isConnected) return render();
       if (sel && !byId(sel) && !draft) { sel = null; return render(); }
       if (!D().entries.length && !draft) return drawBody();
       if (!body.querySelector('.vt-list')) return drawBody();
-      drawList(); if (!dirty && !draft) drawDetail();
+      drawList(); if (!dirty && !draft && !changing) drawDetail();
     });
     OS.watch(el, 'tick', () => { if (mode === 'open' && cd) cd.textContent = cdText(); });
     render();
@@ -226,6 +283,11 @@
 
   OS.feature({
     id: 'vault', name: 'Vault', icon: 'i-key',
+    about: 'Fills logins in Safari and other apps. Passwords are stored in your keychain and unlock with Touch ID.',
+    store: {
+      count: (d) => d.entries.length, unit: 'logins',
+      rule: () => `Passwords are stored in your keychain · ${lockMin() === 'never' ? 'locks when OneShot quits' : `locks after ${lockMin()} min and at launch`}`,
+    },
     seed: () => {
       const now = Date.now(), d = 86400e3;
       return {
@@ -242,16 +304,17 @@
     },
     empty: () => ({ locked: true, unlockedAt: 0, entries: [] }),
     prefs: [
-      { key: 'lockAfter', label: 'Lock after', type: 'select', options: [[1, '1 min'], [5, '5 min'], [15, '15 min'], ['never', 'Never']], default: 5, effect: 'Vault locks itself after this long without use; Autofill then asks to unlock again.' },
-      { key: 'touchId', label: 'Unlock with Touch ID', type: 'toggle', default: true, effect: 'On: unlocking asks for Touch ID. Off: unlocking asks for the master password.' },
+      { key: 'lockAfter', label: 'Lock after', type: 'select', options: [[1, '1 min'], [5, '5 min'], [15, '15 min'], ['never', 'Never']], default: 5, effect: 'Vault locks itself after this long without use; Autofill then asks to unlock again. It always locks when OneShot quits.' },
+      { key: 'confirmFill', label: 'Confirm each fill with Touch ID', type: 'toggle', default: false, effect: 'On: every fill asks for Touch ID, even while Vault is unlocked. Off: fills go straight through until Vault locks.' },
       { key: 'showOnFocus', label: 'Show Autofill when a login field is focused', type: 'toggle', default: true, effect: 'On: clicking a login field opens Autofill under it. Off: only the hotkey opens it.', needs: 'access' },
     ],
     hotkeys: [{ id: 'autofill', label: 'Open Autofill', default: '⌃⌥P', run: autofillHotkey }],
-    scenarios: [{ key: 'touchFail', label: 'Touch ID: next touch doesn’t match' }],
     init() {
+      method = null;
+      if (!D().locked || D().unlockedAt) OS.commit('vault', (d) => { d.locked = true; d.unlockedAt = 0; });   // locked at every launch
       OS.on('tick', () => { const d = D(); if (d.locked) return; if (OS.now() - d.unlockedAt >= lockMs()) lock(); });
       OS.on('host:loginFocus', (p) => { if (filling || !OS.pref('vault.showOnFocus')) return; openAutofill(p.el); });
     },
-    view: { title: 'Vault', mount: (el, params) => OS.ui.load(el, 'vault', (e) => vaultView(e, params || {})) },
+    view: { title: 'Vault', mount: (el, params) => { OS.ui.subtitle(''); OS.ui.load(el, 'vault', (e) => vaultView(e, params || {}), { skeleton: true }); } },
   });
 })();
