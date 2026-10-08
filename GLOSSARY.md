@@ -18,6 +18,10 @@ _Avoid_: Popup, overlay, HUD
 The single OneShot window, with a rail of features, where history and data are browsed and managed.
 _Avoid_: Main window, dashboard
 
+**Hotkey**:
+A key combination that runs a OneShot action from any app. Each action has a default that can be changed or turned off in one place.
+_Avoid_: Global shortcut, keyboard shortcut (a shortcut is an app's own menu equivalent, such as ⌘C)
+
 ### Data
 
 **Store**:
