@@ -41,3 +41,11 @@ _Avoid_: Origin app
 **Concealed copy**:
 A copy marked as secret so clipboard history apps don't keep it. Every Vault copy is concealed.
 _Avoid_: Hidden copy, private copy
+
+**Clipboard access**:
+The permission that lets OneShot read what other apps copy, on Macs that ask for it. Without it, no new clips are kept, but clipboard history stays usable.
+_Avoid_: Pasteboard permission, clipboard permission
+
+**Missed copy**:
+A copy OneShot would have kept but couldn't read, because clipboard access wasn't allowed.
+_Avoid_: Dropped clip, lost clip
