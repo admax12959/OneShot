@@ -4,6 +4,16 @@ A local macOS utility suite that lives in the menu bar: clipboard history, captu
 
 ## Language
 
+### Product
+
+**Feature**:
+One of OneShot's tools (Clipboard, Screenshot, Battery, Displays, JSON, Vault), with its own data, hotkeys and preferences.
+_Avoid_: Module, plugin, app
+
+**Shell**:
+What every feature shares: the status item, the management window, Preferences, permissions, hotkeys and the pasteboard.
+_Avoid_: Core, framework, host
+
 ### Surfaces
 
 **Status item**:
