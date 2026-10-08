@@ -6,6 +6,10 @@ Primary UI language is **English**. The product is planned to support Chinese an
 
 ## Open the prototype
 
+The current design contract is [`prototype-v3/`](prototype-v3/README.md): open `prototype-v3/index.html` at 1440 × 900 or larger. `prototype-v2/` and `prototype/` are kept as earlier evidence.
+
+The original single-file build:
+
 After cloning, open [`prototype/prototype.html`](prototype/prototype.html) in a modern browser. HTML, CSS, JavaScript, and icons are self-contained. No install or build step is required to view.
 
 Source parts used to rebuild that file live under [`prototype/src/`](prototype/src/). From that folder:

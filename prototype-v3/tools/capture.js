@@ -1,453 +1,84 @@
-// Usage: node tools/capture.js
-// Produces curated, deterministic image set into prototype-v2/shots/
+// Usage: node tools/capture.js   — curated v3 shots into prototype-v3/shots/ (one fresh browser context per shot).
+// A failing shot is reported and skipped; the run exits non-zero if any shot failed or the page logged errors.
 const path = require('path');
 const fs = require('fs');
 const { chromium } = require(process.env.PW || '/tmp/pw/node_modules/playwright');
 
-const SHOTS_DIR = path.resolve(__dirname, '../shots');
-const files = [];
+const DIR = path.resolve(__dirname, '../shots');
+const URL = 'file://' + path.resolve(__dirname, '../index.html');
+fs.mkdirSync(DIR, { recursive: true });
+
+const SHOTS = [
+  ['01-desk-textedit-active', async (p) => { await p.click('#te textarea', { position: { x: 200, y: 300 } }); }],
+  ['02-window-clipboard', async (p) => { await open(p, 'clipboard'); await p.click('#view .row'); }],
+  ['03-menu-edit-validated', async (p) => { await open(p, 'clipboard'); await p.click('#view .row'); await p.click('#mbL [data-menu=edit]'); }],
+  ['04-prefs-general', async (p) => { await prefs(p, 'general'); }],
+  ['05-prefs-privacy-last-copy', async (p) => { await p.evaluate(() => { OS.perm.set('helper', true); OS.setScn('perm.helperOutdated', true); OS.pasteboard.copy({ text: 's3cret', source: 'Vault' }); }); await prefs(p, 'privacy'); await p.evaluate(() => (OS.$('#prefs').scrollTop = 400)); }],
+  ['06-prefs-hotkeys-conflict', async (p) => { await prefs(p, 'hotkeys'); await p.click('[data-hk="clipboard.open"]'); await p.keyboard.press('Control+Alt+KeyA'); }],
+  ['07-prefs-hotkeys-reserved', async (p) => { await prefs(p, 'hotkeys'); await p.click('[data-hk="json.format"]'); await p.keyboard.press('Meta+Space'); }],
+  ['08-prefs-storage', async (p) => { await p.waitForTimeout(400); await prefs(p, 'storage'); }],
+  ['09-prefs-feature-clipboard', async (p) => { await prefs(p, 'clipboard'); }],
+  ['10-clipboard-float', async (p) => { await p.evaluate(() => OS.host.textedit.select(40, 40)); await p.keyboard.press('Control+Alt+KeyV'); }],
+  ['11-clipboard-nomatch', async (p) => { await open(p, 'clipboard'); await p.fill('#view .search', 'zebra'); await p.waitForTimeout(400); }],
+  ['12-clipboard-large', async (p) => { await p.evaluate(() => OS.setScn('clipboard.large', true)); await open(p, 'clipboard'); await p.waitForTimeout(500); }],
+  ['13-state-loading-skeleton', async (p) => { await p.evaluate(() => OS.setScn('slow', true)); await open(p, 'clipboard', 150); }],
+  ['14-state-failure', async (p) => { await p.evaluate(() => OS.setScn('json.fail', true)); await open(p, 'json'); }],
+  ['15-screenshot-gate', async (p) => { await p.keyboard.press('Control+Alt+KeyA'); }],
+  ['16-screenshot-editor', async (p) => { await capture(p); }],
+  ['17-screenshot-save-disk-full', async (p) => { await p.evaluate(() => OS.setScn('screenshot.diskFull', true)); await capture(p); await p.click('[data-a=save]'); await p.waitForTimeout(1800); }],
+  ['18-screenshot-history', async (p) => { await open(p, 'screenshot'); }],
+  ['19-battery-popover', async (p) => { await p.click('[data-mb=battery]'); }],
+  ['20-battery-failsafe', async (p) => { await p.evaluate(() => { OS.perm.set('helper', true); OS.setPref('battery.limitOn', true); OS.setScn('battery.helperDisconnect', true); }); await open(p, 'battery'); await p.click('[data-mb=battery]'); }],
+  ['21-battery-helper-outdated', async (p) => { await p.evaluate(() => { OS.perm.set('helper', true); OS.setScn('perm.helperOutdated', true); }); await open(p, 'battery'); }],
+  ['22-displays-popover-backends', async (p) => { await p.click('[data-mb=displays]'); }],
+  ['23-displays-view', async (p) => { await open(p, 'displays'); }],
+  ['24-json-pill-formatted', async (p) => { await selectLine(p, '{"service"'); await p.keyboard.press('Control+Alt+KeyF'); }],
+  ['25-json-pill-invalid', async (p) => { await selectLine(p, '{"event"'); await p.keyboard.press('Control+Alt+KeyF'); }],
+  ['26-json-studio', async (p) => { await open(p, 'json'); await p.click('#view .js-row'); }],
+  ['27-json-large-background', async (p) => { await p.evaluate(() => OS.setScn('json.large', true)); await open(p, 'json'); await p.waitForTimeout(1500); }],
+  ['28-vault-autofill-locked', async (p) => { await p.evaluate(() => { OS.front('#sf'); OS.app.activate('Safari'); }); await p.click('#sf [data-login=pass]'); await p.click('#sf [data-login=user]'); }],
+  ['29-vault-touch-id', async (p) => { await open(p, 'vault'); await p.click('#view .state.locked [data-act]'); }],
+  ['30-vault-unlocked-masked', async (p) => { await unlockVault(p); }],
+  ['31-vault-copy-concealed', async (p) => { await unlockVault(p); await p.click('#view [data-cp=password]'); }],
+  ['32-vault-unstamped-leak', async (p) => { await p.evaluate(() => { OS.setScn('pb.watcher', true); OS.setScn('pb.unstamped', true); }); await unlockVault(p); await p.click('#view [data-cp=password]'); }],
+  ['33-auth-password-fallback', async (p) => { await p.evaluate(() => OS.setScn('auth.unavailable', true)); await open(p, 'vault'); await p.click('#view .state.locked [data-act]'); }],
+  ['34-contract-notes', async (p) => { await p.evaluate(() => { OS.setScn('notes', true); OS.setScn('perm.screenReapprove', true); OS.perm.set('screen', true); }); await prefs(p, 'privacy'); }],
+  ['35-scenarios-menu', async (p) => { await p.click('[data-mb=scn]'); }],
+];
+
+async function open(p, id, wait = 600) { await p.evaluate((i) => OS.open(i), id); await p.waitForTimeout(wait); }
+async function prefs(p, pane) { await p.evaluate((x) => OS.openPrefs(x), pane); await p.waitForTimeout(250); }
+async function selectLine(p, pre) { await p.evaluate((x) => { const v = OS.host.textedit.value(), s = v.indexOf(x); OS.host.textedit.select(s, v.indexOf('\n', s)); }, pre); }
+async function capture(p) {
+  await p.evaluate(() => OS.perm.set('screen', true));
+  await p.keyboard.press('Control+Alt+KeyA'); await p.waitForSelector('.ss-sel');
+  await p.mouse.move(60, 150); await p.mouse.down(); await p.mouse.move(560, 330, { steps: 4 }); await p.mouse.up();
+  await p.waitForSelector('.ss-ed');
+}
+async function unlockVault(p) {
+  await open(p, 'vault'); await p.click('#view .state.locked [data-act]');
+  await p.locator('#dlg [data-touch]').waitFor(); await p.click('#dlg [data-touch]'); await p.waitForTimeout(400);
+  await p.click('#view .vt-list [data-id="v-billing"]');
+}
 
 (async () => {
-  // Ensure shots directory exists
-  if (!fs.existsSync(SHOTS_DIR)) {
-    fs.mkdirSync(SHOTS_DIR, { recursive: true });
-  }
-
   const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined });
-  const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
-  const errs = [];
-  p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
-  p.on('console', (m) => m.type() === 'error' && errs.push('console: ' + m.text()));
-
-  // Helper functions
-  const goto = async (hash = '') => {
-    await p.goto('file://' + path.resolve(__dirname, '../index.html') + (hash ? '#' + hash : ''));
-    await p.waitForTimeout(500);
-  };
-
-  const shot = async (name) => {
-    await p.waitForTimeout(400); // wait for animations
-    const filepath = path.join(SHOTS_DIR, name);
-    await p.screenshot({ path: filepath });
-    files.push(filepath);
-  };
-
-  const touchOk = async () => { await p.locator('#dlg [data-touch]').waitFor(); await p.click('#dlg [data-touch]'); };
-  const autofillUnlocked = async () => {           // focus the login field, unlock with Touch ID, wait for rows
-    await p.evaluate(() => OS.host.safari.front());
-    await p.click('#sf [data-login=pass]'); await p.click('#sf [data-login=user]');
-    await p.locator('#float .state.locked').waitFor(); await p.click('#float [data-act]'); await touchOk();
-    await p.locator('#float .vt-row').first().waitFor();
-  };
-  const key = (k) => p.keyboard.press(k);
-  const click = (sel) => p.click(sel);
-  const front = () => p.evaluate(() => OS.front('#win'));
-  const rail = async (id) => {
-    if (await p.$eval('#win', (e) => e.hidden)) {
-      await p.evaluate((i) => OS.open(i), id);
-    } else {
-      await front();
-      await p.click(`#rail [data-go=${id}]`);
-    }
-  };
-  const wrench = async (scenario) => { await p.click('[data-mb=scn]'); await p.click(`[data-s="${scenario}"]`); await key('Escape'); };
-  const setRange = (k, v) => p.$eval(`input[data-k="${k}"]`, (el, v) => { el.value = v; el.dispatchEvent(new Event('input', { bubbles: true })); }, v);
-  const copyInTextEdit = async (a, bb) => { await p.evaluate(([a, bb]) => { OS.host.textedit.select(a, bb); OS.host.textedit.el().dispatchEvent(new ClipboardEvent('copy', { bubbles: true, cancelable: true })); }, [a, bb]); };
-  const taVal = () => p.evaluate(() => OS.host.textedit.value());
-  const clips = () => p.evaluate(() => OS.data.clipboard.clips.map((c) => ({ id: c.id, kind: c.kind, text: c.text, pinned: c.pinned, at: c.at, source: c.source })));
-  const rows = () => p.$$eval('#float .cb-r .t', (n) => n.map((x) => x.textContent));
-  const floatOpen = () => p.evaluate(() => !document.querySelector('#float').hidden);
-  const drag = async (x0, y0, x1, y1) => {
-    await p.mouse.move(x0, y0);
-    await p.mouse.down();
-    await p.mouse.move((x0 + x1) / 2, (y0 + y1) / 2);
-    await p.mouse.move(x1, y1, { steps: 3 });
-    await p.mouse.up();
-  };
-  const grantScreen = async () => {
-    await p.click('#overlay [data-grant]');
-    await p.click('#dlg [data-t]');
-    await p.click('#dlg [data-r=done]');
-  };
-  const overlayOpen = () => p.evaluate(() => !document.querySelector('#overlay').hidden);
-  const toastBtn = (t) => p.click(`#toasts .toast button:has-text("${t}")`);
-  const shots = () => p.evaluate(() => OS.data.screenshot.shots.map((s) => ({ id: s.id, kind: s.kind, path: s.path, format: s.format, duration: s.duration, marks: s.marks.length, ocr: s.ocr, w: s.rect.w, h: s.rect.h, at: s.at })));
-  const btn = (t) => p.click(`.ss-tb button:has-text("${t}")`);
-  const selectLine = (prefix) => p.evaluate((pre) => { if (OS.host.textedit.value().indexOf(pre) < 0) OS.host.textedit.el().value = window.__orig; const v = OS.host.textedit.value(); const s = v.indexOf(pre); const e = v.indexOf('\n', s); OS.host.textedit.select(s, e); return v.slice(s, e); }, prefix);
-  const pill = () => p.locator('#float .js-pill');
-  const closeWin = async () => { if (await p.locator('#win').isVisible()) await p.click('#rail [data-close]'); };
-  const popOpen = async () => {
-    if (await p.$('#pop:not([hidden]) .bt-pop')) return;
-    await p.click('[data-mb=battery]');
-    await p.waitForSelector('#pop .bt-pop');
-  };
-  const popClose = async () => { await key('Escape'); };
-  const installHelper = async () => { await p.click('[data-grant]'); await p.click('#dlg [data-r="1"]'); await p.waitForSelector('#dlg', { state: 'hidden' }); };
-  const capture = async (r = [60, 150, 560, 330]) => {
-    await key('Control+Alt+KeyA');
-    // Check for permission dialog
-    if (await p.$('#overlay .state.permission')) {
-      await grantScreen();
-    }
-    await p.waitForSelector('.ss-sel', { timeout: 5000 }).catch(() => {});
-    await drag(...r);
-  };
-
-  try {
-    // ===== SHELL MAP =====
-    console.log('Capturing shell map...');
-
-    // 01-shell-preferences-top.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('permissions'));
-    await shot('01-shell-preferences-top.png');
-
-    // 02-shell-hotkeys.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('hotkeys'));
-    await shot('02-shell-hotkeys.png');
-
-    // 03-shell-oneshot-menu.png
-    await goto();
-    await p.click('[data-mb="oneshot"]');
-    await shot('03-shell-oneshot-menu.png');
-
-    // 04-shell-scenarios-menu.png
-    await goto();
-    await p.click('[data-mb="scn"]');
-    await shot('04-shell-scenarios-menu.png');
-
-    // 05-shell-rail-clipboard.png
-    await goto();
-    await rail('clipboard');
-    await p.waitForSelector('#view .split .row', { timeout: 3000 }).catch(() => {});
-    await shot('05-shell-rail-clipboard.png');
-
-    // ===== CLIPBOARD (10-12) =====
-    console.log('Capturing clipboard...');
-
-    // 10-clipboard-runtime.png - float at caret
-    await goto();
-    await p.evaluate(() => { document.querySelector('#win').hidden = true; });
-    await p.evaluate(() => OS.host.textedit.select(40, 40));
-    await key('Control+Alt+KeyV');
-    await shot('10-clipboard-runtime.png');
-
-    // 11-clipboard-data.png - data view
-    await goto();
-    await copyInTextEdit(0, 21);
-    await rail('clipboard');
-    await p.waitForSelector('#view .split .row', { timeout: 3000 }).catch(() => {});
-    await shot('11-clipboard-data.png');
-
-    // 12-clipboard-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('clipboard'));
-    await shot('12-clipboard-prefs.png');
-
-    // ===== SCREENSHOT (13-15) =====
-    console.log('Capturing screenshot...');
-
-    // 13-screenshot-runtime.png - editor with arrow + rectangle
-    await goto();
-    await key('Control+Alt+KeyA');
-    if (await p.$('#overlay .state.permission')) {
-      await grantScreen();
-    }
-    await p.waitForSelector('.ss-sel', { timeout: 5000 }).catch(() => {});
-    await drag(60, 150, 560, 330);
-    await p.waitForSelector('.ss-ed', { timeout: 3000 }).catch(() => {});
-    await btn('Arrow');
-    await drag(120, 250, 300, 190);
-    await btn('Rectangle');
-    await drag(90, 160, 330, 215);
-    await shot('13-screenshot-runtime.png');
-
-    // 14-screenshot-data.png - history (do a capture first)
-    await goto();
-    await capture();
-    await p.waitForSelector('.ss-ed');
-    await btn('Copy & Close');
-    await p.waitForTimeout(500);
-    await rail('screenshot');
-    await p.waitForSelector('#view .row', { timeout: 3000 }).catch(() => {});
-    await shot('14-screenshot-data.png');
-
-    // 15-screenshot-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('screenshot'));
-    await shot('15-screenshot-prefs.png');
-
-    // ===== BATTERY (16-18) =====
-    console.log('Capturing battery...');
-
-    // 16-battery-runtime.png - popover with the limit on (helper installed through the dialog)
-    await goto();
-    await p.click('[data-mb=battery]');
-    await p.locator('#pop [data-grant]').click();
-    await p.click('#dlg [data-r="1"]');
-    await p.locator('#pop [data-lt]').click();
-    await p.waitForFunction(() => OS.pref('battery.limitOn') === true);
-    await shot('16-battery-runtime.png');
-    await popClose();
-
-    // 17-battery-data.png
-    await goto();
-    await popOpen();
-    if (await p.$('#pop .state.permission')) {
-      await installHelper();
-    }
-    await p.click('#pop [data-set]');
-    await p.waitForSelector('.bt-view', { timeout: 3000 }).catch(() => {});
-    await shot('17-battery-data.png');
-
-    // 18-battery-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('battery'));
-    await shot('18-battery-prefs.png');
-
-    // ===== DISPLAYS (19-21) =====
-    console.log('Capturing displays...');
-
-    // 19-displays-runtime.png - popover
-    await goto();
-    await p.click('[data-mb=displays]');
-    await p.waitForSelector('#pop .dd-pop', { timeout: 3000 }).catch(() => {});
-    await shot('19-displays-runtime.png');
-
-    // 20-displays-data.png
-    await goto();
-    await rail('displays');
-    await p.waitForSelector('#view .row', { timeout: 3000 }).catch(() => {});
-    await shot('20-displays-data.png');
-
-    // 21-displays-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('displays'));
-    await shot('21-displays-prefs.png');
-
-    // ===== JSON (22-24) =====
-    console.log('Capturing JSON...');
-
-    // 22-json-runtime.png - Format pill
-    await goto();
-    await closeWin();
-    await p.evaluate(() => (window.__orig = OS.host.textedit.value()));
-    const VALID = '{"service":"status"';
-    await selectLine(VALID);
-    await key('Control+Alt+KeyF');
-    await pill().waitFor({ timeout: 3000 }).catch(() => {});
-    await shot('22-json-runtime.png');
-
-    // 23-json-data.png - Studio
-    await goto();
-    await closeWin();
-    await p.evaluate(() => (window.__orig = OS.host.textedit.value()));
-    await selectLine(VALID);
-    await key('Control+Alt+KeyF');
-    await pill().waitFor({ timeout: 3000 }).catch(() => {});
-    await p.waitForTimeout(200);
-    await rail('json');
-    await p.waitForSelector('#view .row', { timeout: 3000 }).catch(() => {});
-    await shot('23-json-data.png');
-
-    // 24-json-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('json'));
-    await shot('24-json-prefs.png');
-
-    // ===== VAULT (25-27) =====
-    console.log('Capturing vault...');
-
-    // 25-vault-runtime.png - Autofill float on github.com, unlocked
-    await goto();
-    await autofillUnlocked();
-    await shot('25-vault-runtime.png');
-
-    // 26-vault-data.png - unlocked, entry selected (via Open in Vault)
-    await p.click('#float .vt-row:nth-child(2) [data-v]');
-    await p.locator('#view [data-f=title]').waitFor();
-    await shot('26-vault-data.png');
-
-    // 27-vault-prefs.png
-    await goto();
-    await p.evaluate(() => OS.openPrefs('vault'));
-    await shot('27-vault-prefs.png');
-
-    // ===== HANDOFFS =====
-    console.log('Capturing handoffs...');
-
-    // 30-ho1-shot-toast.png (toast with Open after Copy & Close)
-    await goto();
-    await p.evaluate(() => { document.querySelector('#win').hidden = true; });
-    await capture();
-    await p.waitForSelector('.ss-ed');
-    await btn('Arrow');
-    await drag(120, 250, 300, 190);
-    await btn('Copy & Close');
-    await shot('30-ho1-shot-toast.png');
-
-    // 31-ho1-clipboard-selected.png (Clipboard with the new clip selected)
-    await toastBtn('Open');
-    await p.waitForSelector('#view .row.sel', { timeout: 3000 }).catch(() => {});
-    await shot('31-ho1-clipboard-selected.png');
-
-    // 32-ho2-clipboard-format-pill.png (Format pill opened from JSON clip)
-    await goto();
-    await rail('clipboard');
-    await p.waitForSelector('#view .row', { timeout: 3000 }).catch(() => {});
-    await p.click('#view [data-type] [data-v=json]');
-    if (await p.$('#view .row')) {
-      await p.click('#view .row');
-      await p.click('[data-a=format]');
-      await p.waitForTimeout(400);
-    }
-    await shot('32-ho2-clipboard-format-pill.png');
-
-    // 33-ho2-studio-selected.png — Open in Studio from the clip's Format pill
-    await p.locator('#float [data-open]').click();
-    await p.locator('.js-row.sel').waitFor();
-    await shot('33-ho2-studio-selected.png');
-
-    // 34-ho3-autofill-open-in-vault.png — unlocked float, hover Open in Vault on the work account
-    await goto();
-    await autofillUnlocked();
-    await p.hover('#float .vt-row:nth-child(3) [data-v]');
-    await shot('34-ho3-autofill-open-in-vault.png');
-
-    // 35-ho3-vault-selected.png
-    await p.click('#float .vt-row:nth-child(3) [data-v]');
-    await p.locator('#view [data-f=title]').waitFor();
-    await shot('35-ho3-vault-selected.png');
-
-    // 36-ho3-noentry-float.png — vault already unlocked; switch to status.acme.io
-    await p.click('#rail [data-close]');
-    await p.click('#sf [data-tab="1"]');
-    await p.click('#sf [data-login=user]');
-    await p.locator('#float .state').waitFor();
-    await shot('36-ho3-noentry-float.png');
-    await shot('50-no-vault-entry.png');
-
-    // 37-ho3-vault-create.png (new entry form with URL filled)
-    await p.click('#float [data-act]');
-    await p.locator('#view [data-f=url]').waitFor();
-    await shot('37-ho3-vault-create.png');
-
-        // ===== STATES =====
-    console.log('Capturing states...');
-
-    // 40-state-loading.png (loading state in data view)
-    await goto();
-    await wrench('slow');
-    await rail('clipboard');
-    if (await p.$('#view .state.loading')) {
-      await shot('40-state-loading.png');
-    }
-    await wrench('slow');
-
-    // 41-state-empty-clipboard.png
-    await goto();
-    await wrench('clipboard.empty');
-    await rail('clipboard');
-    await p.waitForSelector('#view .state.empty', { timeout: 3000 }).catch(() => {});
-    await shot('41-state-empty-clipboard.png');
-    await wrench('clipboard.empty');
-
-    // 42-state-failure-json.png
-    await goto();
-    await closeWin();
-    await p.evaluate(() => (window.__orig = OS.host.textedit.value()));
-    const INVALID = '{"event":"deploy"';
-    await selectLine(INVALID);
-    await key('Control+Alt+KeyF');
-    await pill().waitFor({ timeout: 3000 }).catch(() => {});
-    await shot('42-state-failure-json.png');
-
-    // 43-perm-screen-recording.png
-    await goto();
-    await key('Control+Alt+KeyA');
-    if (await p.$('#overlay .state.permission')) {
-      await shot('43-perm-screen-recording.png');
-      await key('Escape');
-    }
-
-    // 44-perm-accessibility.png (revoked)
-    await goto();
-    await p.evaluate(() => OS.perm.set('access', false));
-    await p.evaluate(() => { document.querySelector('#win').hidden = true; });
-    await key('Control+Alt+KeyV');
-    await p.waitForSelector('#float', { timeout: 3000 }).catch(() => {});
-    await shot('44-perm-accessibility.png');
-
-    // 45-perm-helper.png (battery popover without helper)
-    await goto();
-    await p.evaluate(() => OS.perm.set('helper', false));
-    await popOpen();
-    await shot('45-perm-helper.png');
-
-    // 46-ddc-unsupported.png (displays view)
-    await goto();
-    await p.evaluate(() => OS.open('displays', { select: 'tv' }));
-    await p.locator('#view .state.unsupported').first().waitFor();
-    await shot('46-ddc-unsupported.png');
-
-    // 47-touchid-failed.png — same steps as tools/test-vault.js
-    await goto();
-    await wrench('vault.touchFail');
-    await p.evaluate(() => OS.host.safari.front());
-    await p.click('#sf [data-login=user]');
-    await p.locator('#float .state.locked').waitFor();
-    await p.click('#float [data-act]');
-    await p.locator('#dlg [data-touch]').waitFor();
-    await p.click('#dlg [data-touch]');
-    await p.locator('#float .state.failure').waitFor();
-    await shot('47-touchid-failed.png');
-
-    // 48-vault-locked.png
+  let failed = 0; const errs = [];
+  for (const [name, run] of SHOTS) {
+    const ctx = await b.newContext({ viewport: { width: 1440, height: 900 } });
+    const p = await ctx.newPage();
+    p.on('pageerror', (e) => errs.push(`${name}: ${e.message}`));
+    p.on('console', (m) => m.type() === 'error' && errs.push(`${name}: ${m.text()}`));
     try {
-      await goto();
-      await p.evaluate(() => { OS.data.vault.locked = true; });
-      await rail('vault');
-      await p.waitForSelector('#view', { timeout: 3000 }).catch(() => {});
-      if (await p.$('#view .state.locked')) {
-        await shot('48-vault-locked.png');
-      } else {
-        // Try to create locked state manually
-        await shot('48-vault-locked.png');
-      }
-    } catch (e) {
-      console.log('Note: 48-vault-locked.png could not be captured');
-    }
-
-    // 49-invalid-json.png
-    await goto();
-    await closeWin();
-    await p.evaluate(() => (window.__orig = OS.host.textedit.value()));
-    await selectLine(INVALID);
-    await key('Control+Alt+KeyF');
-    await pill().waitFor({ timeout: 3000 }).catch(() => {});
-    await shot('49-invalid-json.png');
-
-    // Report
-    console.log('\n=== CAPTURE COMPLETE ===');
-    console.log(`Files written: ${files.length}`);
-    files.forEach((f) => {
-      const name = path.basename(f);
-      console.log(`  ${name}`);
-    });
-
-    if (errs.length) {
-      console.log('\nWarnings:');
-      errs.forEach((e) => console.log(`  ${e}`));
-    }
-
-    await b.close();
-    process.exit(0);
-
-  } catch (e) {
-    console.error('ERROR:', e.message);
-    console.error(e.stack);
-    await b.close();
-    process.exit(1);
+      await p.goto(URL); await p.waitForTimeout(500);
+      await run(p); await p.waitForTimeout(450);
+      await p.screenshot({ path: path.join(DIR, name + '.png') });
+      console.log('ok  ', name);
+    } catch (e) { failed++; console.log('FAIL', name, '—', e.message.split('\n')[0]); }
+    await ctx.close();
   }
+  await b.close();
+  console.log(errs.length ? errs.join('\n') : 'no errors');
+  console.log(`${SHOTS.length - failed}/${SHOTS.length} shots → ${DIR}`);
+  process.exit(failed || errs.length ? 1 : 0);
 })();

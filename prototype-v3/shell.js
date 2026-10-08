@@ -291,7 +291,7 @@
       }[st];
       el.innerHTML = `<div class="state permission ${st}"><div class="k">${esc(STATE_TAG[st][1])}</div><div class="tile">${icon(p.icon, 'l')}</div><h3>${esc(c.t)}</h3><p>${esc(c.b)}</p>
         <div class="st-acts"><button class="btn primary" data-grant>${esc(c.a)}</button></div>
-        <div class="foot">${st === 'missing' ? `System Settings › ${esc(p.pane)}` : st === 'approval' && id === 'helper' ? 'System Settings › General › Login Items & Extensions' : `Helper ${esc(OS.helperInstalled)} → ${esc(OS.helperBundled)}`}</div>
+        <div class="foot">${st === 'outdated' ? `Helper ${esc(OS.helperInstalled)} → ${esc(OS.helperBundled)}` : `System Settings › ${esc(p.pane)}`}</div>
         ${OS.ui.note(id === 'helper' ? 'SMAppService.daemon status → ' + st : 'Re-checked only while this card is visible and on didBecomeActive')}</div>`;
       el.querySelector('[data-grant]').onclick = (e) => { e.stopPropagation(); OS.perm.request(id); };
     };
@@ -328,7 +328,7 @@
 
   /* ---------- toasts (notification banners) ---------- */
   OS.ui.toast = (text, o = {}) => {
-    const t = h(`<div class="toast ${o.kind || ''}"><div class="tt">${icon(o.icon || (o.kind === 'failure' ? 'i-x' : 'i-check'))}</div><div class="t"><b>${esc(text)}</b>${o.sub ? `<div class="sub">${esc(o.sub)}</div>` : ''}${o.note ? OS.ui.note(o.note) : ''}</div>${o.action ? `<button class="btn">${esc(o.action.label)}</button>` : ''}</div>`);
+    const t = h(`<div class="toast ${o.kind || ''} ${o.action && o.action.label.length > 12 ? 'stack' : ''}"><div class="tt">${icon(o.icon || (o.kind === 'failure' ? 'i-x' : 'i-check'))}</div><div class="t"><b>${esc(text)}</b>${o.sub ? `<div class="sub">${esc(o.sub)}</div>` : ''}${o.note ? OS.ui.note(o.note) : ''}</div>${o.action ? `<button class="btn">${esc(o.action.label)}</button>` : ''}</div>`);
     if (o.action) t.querySelector('button').onclick = () => { t.remove(); o.action.run(); };
     $('#toasts').prepend(t); setTimeout(() => t.remove(), o.ms || 6000);
     return t;
@@ -372,7 +372,7 @@
   }
   /* LocalAuthentication, device-owner policy: biometry first, the Mac's login password as the system fallback.
      resolves {ok, method:'biometry'|'password'} | {ok:false, reason:'nomatch'|'cancel'|'lockout'} */
-  function authenticate(reason) {
+  function authenticate(reason, opt = {}) {
     const pwStep = (why) => dialog(`<div class="tid pw">${icon('i-lock', 'l')}</div><h3>OneShot</h3><p>${esc(reason)}</p>${why ? `<p class="muted small">${esc(why)}</p>` : ''}
       <input class="field wide" type="password" placeholder="Password" data-pw autocomplete="off"><div class="err small" data-err></div>
       <div class="acts"><button class="btn" data-r="cancel">Cancel</button><button class="btn primary" data-ok>OK</button></div>`, (box, fin) => {
@@ -380,6 +380,7 @@
       const go = () => { if (pw.value) fin('password'); else { box.querySelector('[data-err]').textContent = 'Enter the password you use to log in to this Mac.'; pw.focus(); } };
       box.querySelector('[data-ok]').onclick = go; pw.onkeydown = (e) => { if (e.key === 'Enter') go(); };
     }).then((r) => (r === 'password' ? { ok: true, method: 'password' } : { ok: false, reason: 'cancel' }));
+    if (opt.fallback === 'password') return pwStep();
     if (OS.scn('auth.unavailable')) return pwStep('Touch ID isn’t available right now.');
     if (OS.scn('auth.lockout')) return pwStep('Touch ID is locked after too many attempts. Enter your password to turn it back on.').then((r) => { if (r.ok) setScn('auth.lockout', false); return r; });
     return dialog(`<div class="tid" data-touch>${icon('i-finger', 'xl')}</div><h3>Touch ID</h3><p>${esc(reason)}</p><p class="muted small">Touch the sensor. In this simulation, click the fingerprint.</p>
@@ -403,7 +404,7 @@
     allows: (src) => src !== 'Vault' && prefs['policy.' + src] !== false,
   };
   OS.pasteboard = {
-    current: null, changeCount: 0,
+    current: null, changeCount: 0, historyMax: 1000000,
     types: { CONCEALED, TRANSIENT, ORIGIN },
     /* PasteboardWriter: stamps data type + origin; secrets get concealed + transient unless the writer bug scenario is on */
     copy(item) {
@@ -413,10 +414,11 @@
       if (p.source === 'Vault' && !OS.scn('pb.unstamped')) p.types.push(CONCEALED, TRANSIENT);
       p.concealed = p.types.includes(CONCEALED);
       OS.pasteboard.current = p; OS.pasteboard.changeCount++;
-      const recorded = OS.policy.allows(p.source) && !p.concealed;
+      const tooLarge = (p.text || '').length > OS.pasteboard.historyMax;   // reaches the pasteboard, not history
+      const recorded = OS.policy.allows(p.source) && !p.concealed && !tooLarge;
       if (recorded) OS.emit('pasteboard:record', p); // Clipboard feature sets p.clipId
       OS.emit('pasteboard', p);
-      return { recorded, clipId: p.clipId, concealed: p.concealed, types: p.types };
+      return { recorded, clipId: p.clipId, concealed: p.concealed, types: p.types, tooLarge };
     },
   };
 
@@ -543,7 +545,7 @@
 
   /* ---------- status items ---------- */
   let popFor = null;
-  function closePop() { $('#pop').hidden = true; $('#pop').innerHTML = ''; $$('.mbi.on').forEach((b) => b.classList.remove('on')); const p = popFor; popFor = null; return p; }
+  function closePop() { $('#toasts').style.right = ''; $('#pop').hidden = true; $('#pop').innerHTML = ''; $$('.mbi.on').forEach((b) => b.classList.remove('on')); const p = popFor; popFor = null; return p; }
   function openPop(key, btn, render) {
     closeMenu();
     if (closePop() === key) return;
@@ -551,6 +553,7 @@
     const pop = $('#pop'); pop.hidden = false; const body = h('<div></div>'); pop.appendChild(body); render(body);
     const r = btn.getBoundingClientRect(), sr = $('#screen').getBoundingClientRect();
     pop.style.left = Math.min(1440 - pop.offsetWidth - 8, Math.max(8, r.right - sr.left - pop.offsetWidth + 20)) + 'px';
+    $('#toasts').style.right = (1440 - pop.offsetLeft + 12) + 'px';    // toasts never cover an open popover
   }
   OS.closePopover = closePop;
   OS.menubar = {
