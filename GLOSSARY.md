@@ -18,6 +18,12 @@ _Avoid_: Popup, overlay, HUD
 The single OneShot window, with a rail of features, where history and data are browsed and managed.
 _Avoid_: Main window, dashboard
 
+### Data
+
+**Store**:
+One feature's kept data, kept and reset as a unit. The Storage pane shows each store's rule, size, last save and location.
+_Avoid_: Database, cache
+
 ### Clipboard
 
 **Clip**:
