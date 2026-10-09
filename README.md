@@ -20,6 +20,17 @@ python3 build.py
 
 This regenerates `../prototype.html` (and the sibling `oneshot-runtime-all.html` path used during design).
 
+## Checks
+
+```bash
+node scripts/check.mjs                  # the one entry point; local and CI run exactly this
+node --test scripts/test/*.test.mjs     # the checks' own tests (negative cases on temporary fixtures)
+```
+
+Needs Node 20+ and `python3`; no install step, no dependencies, no browser. It parses every `.js` file (never runs one), checks that each prototype page's scripts and stylesheets exist, are all loaded and are local, and rebuilds `prototype/prototype.html` in a temporary copy and requires it to match the committed file byte for byte (a forbidden word in the build is a failure). Both commands run in [`.github/workflows/check.yml`](.github/workflows/check.yml) with a read-only token.
+
+The Playwright walk-throughs under `prototype-v*/tools/` are not part of this: they need a browser and a local Playwright install, and stay a manual local step.
+
 ## Product shape (four layers by dwell time)
 
 Not one mega-window with tabs. Surfaces are separated by how long you stay:
