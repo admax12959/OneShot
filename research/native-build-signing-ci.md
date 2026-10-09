@@ -180,12 +180,14 @@ None of these is answered here.
 
 ## Acceptance status for ticket 21
 
-1. One Markdown file on branch `research/native-build-signing-ci`, local only: met. The file is uncommitted and unpublished.
+1. One Markdown file on branch `research/native-build-signing-ci`: met. The ticket text said "local only". Publication was later authorized separately, and the branch is pushed and open as [draft PR 22](https://github.com/admax12959/OneShot/pull/22), 2026-10-09. The PR is not merged and the ticket is open.
 2. Every factual claim cites a primary source with exact URL and access date: met. All dates are 2026-10-09 UTC. Forum posts are Apple DTS answers and project links are project documents; both are labelled. An independent manual review against the cached primary pages was completed on 2026-10-09 UTC.
 3. Separate sections for facts, options, recommendation and open questions: met.
 4. Unverifiable or version-sensitive claims labelled: met. See the unverified and inference labels.
 5. No decision language, no secrets or identifiers: met. The structural checker (a separate script, reported with this note) covers this pattern-wise only, and the independent manual read completed on 2026-10-09 UTC. The checker's PASS stays a structural result, not a semantic one.
 6. Independent review before the ticket closes: completed on 2026-10-09 UTC (manual, by the reviewer). Nothing here was validated by a native build, signing or notarization run. The ticket stays open on explicit authorization.
+
+Local review results and CI results are different evidence. Local: the structural checker and its self-test passed, `node scripts/check.mjs` passed, and the manual review above was done. CI: the repository's existing `check` job runs on the pull request, and its results are on [PR 22](https://github.com/admax12959/OneShot/pull/22). That job runs the prototype artifact checks and does not read this note's claims, so a green CI result says nothing about the research conclusions.
 
 ## Process evidence
 
