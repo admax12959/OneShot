@@ -6,6 +6,10 @@ Primary UI language is **English**. The product is planned to support Chinese an
 
 ## Open the prototype
 
+The current design contract is [`prototype-v3/`](prototype-v3/README.md): open `prototype-v3/index.html` at 1440 × 900 or larger. `prototype-v2/` and `prototype/` are kept as earlier evidence.
+
+The original single-file build:
+
 After cloning, open [`prototype/prototype.html`](prototype/prototype.html) in a modern browser. HTML, CSS, JavaScript, and icons are self-contained. No install or build step is required to view.
 
 Source parts used to rebuild that file live under [`prototype/src/`](prototype/src/). From that folder:
@@ -15,6 +19,17 @@ python3 build.py
 ```
 
 This regenerates `../prototype.html` (and the sibling `oneshot-runtime-all.html` path used during design).
+
+## Checks
+
+```bash
+node scripts/check.mjs                  # the one entry point; local and CI run exactly this
+node --test scripts/test/*.test.mjs     # the checks' own tests (negative cases on temporary fixtures)
+```
+
+Needs Node 20+ and `python3`; no install step, no dependencies, no browser. It parses every `.js` file (never runs one), checks that each prototype page's scripts and stylesheets exist, are all loaded and are local, and rebuilds `prototype/prototype.html` in a temporary copy and requires it to match the committed file byte for byte (a forbidden word in the build is a failure). Both commands run in [`.github/workflows/check.yml`](.github/workflows/check.yml) with a read-only token.
+
+The Playwright walk-throughs under `prototype-v*/tools/` are not part of this: they need a browser and a local Playwright install, and stay a manual local step.
 
 ## Product shape (four layers by dwell time)
 

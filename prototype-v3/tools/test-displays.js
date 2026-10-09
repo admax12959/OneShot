@@ -1,0 +1,227 @@
+// Displays walkthrough (v3): DS-1..DS-5, ST-1..ST-3 + backends (G6), re-probe, DDC failure, desk dimming, presets responder (G10), reload (G1).
+// Usage: node tools/test-displays.js
+const path = require('path');
+const { chromium } = require(process.env.PW || '/tmp/pw/node_modules/playwright');
+let n = 0;
+const ok = (c, m) => { if (!c) throw new Error('FAIL: ' + m); console.log('  ok  ' + m); };
+(async () => {
+  const b = await chromium.launch({ channel: process.env.PW_CHANNEL || undefined });
+  const p = await b.newPage({ viewport: { width: 1440, height: 900 } });
+  const errs = [];
+  p.on('pageerror', (e) => errs.push('pageerror: ' + e.message));
+  p.on('console', (m) => m.type() === 'error' && errs.push('console: ' + m.text()));
+  const url = 'file://' + path.resolve(__dirname, '../index.html');
+  await p.goto(url);
+  await p.waitForTimeout(500);
+  const shot = (name) => p.screenshot({ path: `/tmp/v3-displays-${String(++n).padStart(2, '0')}-${name}.png` });
+  const txt = (s) => p.evaluate((s) => (document.querySelector(s) || {}).textContent || '', s);
+  const setRange = (sel, v) => p.evaluate(([s, v]) => { const e = document.querySelector(s); e.value = v; e.dispatchEvent(new Event('input', { bubbles: true })); }, [sel, v]);
+  const popOpen = async () => { if (await p.$('#pop:not([hidden]) .dp-pop')) return; await p.click('[data-mb=displays]'); await p.waitForSelector('#pop .dp-pop .pop-b'); };
+  const popClose = async () => { await p.keyboard.press('Escape'); };
+  const scn = async (key) => { await p.click('[data-mb=scn]'); await p.click(`[data-s="${key}"]`); await p.keyboard.press('Escape'); };
+  const setScn = (k, v) => p.evaluate(([k, v]) => OS.setScn(k, v), [k, v]);
+  const disp = (id) => p.evaluate((id) => OS.data.displays.list.find((x) => x.id === id), id);
+  const bri = async (id) => Math.round((await disp(id)).brightness * 100);
+  const aria = (s) => p.getAttribute(s, 'aria-checked');
+  const dim = async () => { await p.waitForTimeout(320); return p.$eval('#dim', (e) => +getComputedStyle(e).opacity); };
+  const warm = async () => { await p.waitForTimeout(320); return p.$eval('#warm', (e) => +getComputedStyle(e).opacity); };
+  const open = async () => { await p.click('#pop [data-set]'); await p.waitForSelector('.dp-view .dp-arr .dp-rect'); };
+  const editItems = (id = 'edit') => p.evaluate((id) => OS.menus().find((m) => m.id === id).items.filter((i) => i !== '-').map((i) => [i.label, i.enabled()]), id);
+
+  console.log('G6 backends: seed model');
+  const model = await p.evaluate(() => OS.data.displays.list.map((x) => [x.id, x.backend, x.controls.join(','), 'ddc' in x]));
+  ok(JSON.stringify(model) === JSON.stringify([['builtin', 'native', 'brightness', false], ['dell', 'ddc', 'brightness', false], ['tv', 'unsupported', '', false], ['ipad', 'software', 'brightness', false]]), 'each display has backend + controls, no boolean ddc: ' + JSON.stringify(model));
+
+  console.log('DS-1 popover + DS-4 capability lines');
+  await popOpen();
+  let t = await txt('#pop');
+  ok(/Built-in Retina Display/.test(t) && /Dell U2723QE/.test(t) && /LG TV/.test(t) && /iPad Pro \(Sidecar\)/.test(t), 'popover lists all four displays');
+  ok(/macOS controls brightness/.test(t), 'native: macOS controls brightness');
+  ok(/DDC\/CI over USB-C/.test(t), 'ddc: DDC/CI over USB-C');
+  ok(/Dims with an overlay; the panel’s own brightness doesn’t change/.test(t), 'software: overlay note');
+  ok(/This TV doesn’t answer DDC\/CI brightness requests over HDMI/.test(t), 'unsupported: LG reason');
+  ok(!!(await p.$('#pop [data-unsup="tv"] .state.unsupported')) && !(await p.$('#pop [data-b="tv"]')), 'LG TV shows the placeholder, never a slider');
+  ok(await p.$eval('#pop [data-b="*"]', (e) => e.step === '5'), 'linked master slider, step 5');
+  ok(/Linked · Built-in, Dell, iPad/.test(t), 'linked line lists only displays with brightness control');
+  await shot('popover');
+
+  console.log('DS-1 linked brightness moves only displays with brightness control');
+  await setRange('#pop [data-b="*"]', 30);
+  ok((await bri('builtin')) === 30 && (await bri('dell')) === 30 && (await bri('ipad')) === 30, 'linked: builtin, dell, ipad = 30');
+  ok(!('brightness' in (await disp('tv'))), 'LG TV untouched');
+  ok(/30%/.test(await txt('#pop [data-lv="dell"]')), 'per-display values follow in the popover');
+  const dimLow = await dim();
+  ok(dimLow > 0.05 && dimLow < 0.3, 'desk dims gently at 30% (' + dimLow.toFixed(3) + ')');
+  await setRange('#pop [data-b="*"]', 70);
+  ok((await dim()) <= 0.08, 'built-in 70% barely dims the desk (' + (await dim()).toFixed(3) + ')');
+  await setRange('#pop [data-b="*"]', 100);
+  ok((await dim()) === 0, 'built-in 100% = no dim');
+  await setRange('#pop [data-b="*"]', 70);
+
+  console.log('DS-1 link off: sliders per display');
+  await p.evaluate(() => OS.setPref('displays.link', false));
+  ok(!!(await p.$('#pop [data-b="dell"]')) && !!(await p.$('#pop [data-b="builtin"]')) && !!(await p.$('#pop [data-b="ipad"]')) && !(await p.$('#pop [data-b="tv"]')), 'one slider per controllable display');
+  await setRange('#pop [data-b="dell"]', 40);
+  ok((await bri('dell')) === 40 && (await bri('builtin')) === 70, 'only Dell moved');
+  await p.evaluate(() => OS.setPref('displays.link', true));
+
+  console.log('DS-2 Night Look');
+  await p.click('#pop [data-night]');
+  ok((await aria('#pop [data-night]')) === 'true' && (await warm()) > 0.1, 'toggle on tints the screen (' + (await warm()).toFixed(2) + ')');
+  await p.evaluate(() => OS.setPref('displays.warmth', 100));
+  ok((await warm()) > 0.3, 'warmth 100% tints more');
+  await p.evaluate(() => OS.setPref('displays.warmth', 50));
+  await p.click('#pop [data-night]');
+  ok((await warm()) === 0, 'toggle off clears it');
+  await setScn('notes', true);
+  ok(/gamma table primary/.test(await txt('#pop')) && /overlay window fallback/.test(await txt('#pop')), 'contract note: gamma table primary, overlay fallback');
+  await shot('popover-notes');
+  await setScn('notes', false);
+
+  console.log('DS-5 popover -> view -> popover');
+  await open();
+  await p.waitForSelector('.dp-pane [data-b]');
+  ok(/Built-in Retina Display/.test(await txt('.dp-pane')) && /macOS controls brightness/.test(await txt('.dp-pane')) && /Native/.test(await txt('.dp-pane .dp-kv')), 'pane: built-in with backend + reason');
+  ok((await p.inputValue('.dp-pane [data-b="builtin"]')) === '70', 'pane slider reflects popover (70)');
+  await setRange('.dp-pane [data-b="builtin"]', 55);
+  ok((await bri('dell')) === 55 && (await bri('ipad')) === 55, 'pane slider is linked too');
+  await popOpen();
+  ok((await p.inputValue('#pop [data-b="*"]')) === '55', 'popover follows pane (55)');
+  await popClose();
+  await p.click('.dp-arr [data-d="tv"]');
+  ok(!!(await p.$('.dp-pane .state.unsupported')) && !(await p.$('.dp-pane [data-b]')) && /over HDMI/.test(await txt('.dp-pane')), 'selecting the TV: pane shows the placeholder + reason, no slider');
+  ok(/Unsupported/.test(await txt('.dp-arr [data-d="tv"]')), 'arrangement tile says Unsupported');
+  await p.click('.dp-arr [data-d="ipad"]');
+  ok(/Software/.test(await txt('.dp-pane .dp-kv')) && /Dims with an overlay/.test(await txt('.dp-pane')), 'selecting the iPad: Software backend + overlay reason');
+  await p.click('.dp-arr [data-d="dell"]');
+  ok(/DDC\/CI over USB-C/.test(await txt('.dp-pane')), 'selecting Dell: DDC/CI over USB-C');
+  await shot('view');
+
+  console.log('DS-3 presets: apply, save, delete, responder');
+  let edit = await editItems();
+  ok((await editItems('file')).find(([l]) => /^Save Current as Preset/.test(l))[1] === true, 'File > Save Current as Preset (⌘N) enabled in this view');
+  ok(edit.find(([l]) => /^Delete/.test(l))[1] === false, 'Edit > Delete disabled with no preset selected');
+  await p.click('.dp-prow[data-p="p-night"]');
+  ok(await p.$eval('.dp-prow[data-p="p-night"]', (e) => e.classList.contains('sel')), 'click selects a preset');
+  edit = await editItems();
+  ok(edit.find(([l]) => /^Delete/.test(l))[1] === true && /Delete “Night”/.test(edit.find(([l]) => /^Delete/.test(l))[0]), 'Edit > Delete enables with a selection: ' + edit.find(([l]) => /^Delete/.test(l))[0]);
+  await p.click('#mbL [data-menu=edit]');
+  ok(!(await p.$('#menu button[disabled]:has-text("Delete")')), 'Edit menu draws Delete enabled');
+  await p.keyboard.press('Escape');
+  await p.click('.dp-prow[data-p="p-night"] [data-apply]');
+  ok((await bri('builtin')) === 35 && (await bri('dell')) === 30 && (await bri('ipad')) === 40 && (await p.evaluate(() => OS.data.displays.night)) === true, 'Apply Night sets every display + Night Look');
+  ok(await p.$eval('.dp-prow[data-p="p-night"]', (e) => !!e.querySelector('[data-applied]')), 'Applied tag shows');
+  await shot('presets');
+  await p.fill('[data-name]', 'Reading');
+  await p.click('[data-save]');
+  ok((await p.evaluate(() => OS.data.displays.presets.some((x) => x.name === 'Reading' && x.values.dell === 0.3 && x.night === true))) === true, 'Save Current as Preset stores values + Night Look');
+  ok(await p.$eval('.dp-prow.sel', (e) => /Reading/.test(e.textContent)), 'new preset is selected');
+  await popOpen();
+  ok(!!(await p.$('#pop [data-preset]:has-text("Reading")')), 'new preset appears in the popover');
+  await popClose();
+  await p.keyboard.press('Meta+n');
+  ok((await p.evaluate(() => OS.data.displays.presets.length)) === 5 && /Preset \d/.test(await p.evaluate(() => OS.data.displays.presets[4].name)), '⌘N saves the current state as an auto-named preset');
+  await p.click('#view .dp-prow.sel');
+  await p.keyboard.press('Backspace');
+  ok((await p.evaluate(() => OS.data.displays.presets.length)) === 4 && /Deleted/.test(await txt('#toasts')), 'Backspace deletes the selected preset with a toast');
+  ok((await editItems()).find(([l]) => /^Undo/.test(l))[1] === true, 'Edit > Undo enabled after a delete');
+  await p.click('#toasts [data-act], #toasts button');
+  ok((await p.evaluate(() => OS.data.displays.presets.length)) === 5, 'Undo in the toast restores it');
+  await p.click('.dp-prow[data-p="p-cinema"] [data-del]');
+  ok(!(await p.evaluate(() => OS.data.displays.presets.some((x) => x.id === 'p-cinema'))), 'trash button deletes Cinema');
+
+  console.log('G6 re-probe: wake from sleep');
+  await p.evaluate(() => OS.setPref('displays.link', false));
+  await scn('displays.wake');
+  await popOpen();
+  ok((await p.$$('#pop .dp-chk')).length === 4 && !(await p.$('#pop [data-b]')), 'wake: every display shows Checking…, no sliders');
+  ok(/Checking…/.test(await txt('.dp-arr [data-d="dell"]')), 'wake: arrangement tile says Checking…');
+  await shot('popover-checking');
+  await p.waitForFunction(() => !OS.scn('displays.wake'), null, { timeout: 5000 });
+  t = await txt('#pop');
+  ok(!!(await p.$('#pop [data-b="dell"]')) && /DDC\/CI over USB-C/.test(t) && /macOS controls brightness/.test(t) && !!(await p.$('#pop [data-unsup="tv"] .state.unsupported')), 'wake: each display shows its backend again');
+  await popClose();
+  await scn('displays.rearrange');
+  await popOpen();
+  ok((await p.$$('#pop .dp-chk')).length === 4, 'rearrange: Checking… again');
+  await p.waitForFunction(() => !OS.scn('displays.rearrange'), null, { timeout: 5000 });
+  ok(!!(await p.$('#pop [data-b="dell"]')) && (await p.$$('#pop .dp-chk')).length === 0, 'rearrange: backends are back');
+  await popClose();
+  await p.click('[data-recheck]');
+  ok((await p.$$('.dp-pane .dp-chk')).length === 1, 'toolbar "Check displays again" re-probes');
+  await p.waitForFunction(() => !OS.scn('displays.rescan'), null, { timeout: 5000 });
+
+  console.log('G6 DDC write fails');
+  await setRange('.dp-pane [data-b="dell"]', 25); // link off
+  const dellBefore = await bri('dell');
+  await scn('displays.ddcFail');
+  await popOpen();
+  await setRange('#pop [data-b="dell"]', 80);
+  ok((await bri('dell')) === dellBefore && (await p.inputValue('#pop [data-b="dell"]')) === String(dellBefore), 'Dell slider reverts to ' + dellBefore);
+  ok(/Dell U2723QE didn’t confirm the change\./.test(await txt('#pop [data-fail="dell"]')), 'inline message under Dell');
+  ok(!(await p.$('#pop [data-fail="builtin"]')) && !(await p.$('#pop .state.failure')), 'only Dell is affected, no store failure');
+  await shot('popover-ddc-fail');
+  await open();
+  await p.click('.dp-arr [data-d="dell"]');
+  ok(/didn’t confirm the change/.test(await txt('.dp-pane [data-fail="dell"]')), 'the settings pane shows the same message');
+  await p.click('.dp-pane [data-retry]');
+  ok((await bri('dell')) === 80 && !(await p.$('.dp-pane [data-fail]')) && !(await p.evaluate(() => OS.scn('displays.ddcFail'))), 'Try Again applies the change (80) and clears the message');
+  await p.evaluate(() => OS.setPref('displays.link', true));
+
+  console.log('unplug externals');
+  await scn('displays.unplug');
+  ok((await p.$$('.dp-arr [data-d]')).length === 1 && /No external displays/.test(await txt('.dp-arr')), 'only the built-in remains with an empty state');
+  await popOpen();
+  ok(!!(await p.$('#pop [data-b="builtin"]')) && !(await p.$('#pop [data-b="*"]')) && /No external displays/.test(await txt('#pop')), 'popover: single slider, no linked master');
+  await popClose();
+  await scn('displays.unplug');
+  ok((await p.$$('.dp-arr [data-d]')).length === 4, 'externals return');
+
+  console.log('Preferences + store');
+  await p.click('[data-go=prefs]'); await p.waitForSelector('#prefwin:not([hidden]) .ptabs');
+  await p.click('#prefwin [data-pane=displays]');
+  await p.waitForSelector('#prefs [data-k="displays.link"]');
+  ok(/One slider moves every display whose controls include brightness/.test(await txt('#prefs')), 'prefs effect line names the capability rule');
+  ok(/\d+ presets/.test(await txt('#prefs')) && /Keeps your presets/.test(await txt('#prefs')), 'Data row: preset count + rule');
+  await shot('preferences');
+  await p.evaluate(() => OS.closeWindow('#prefwin'));
+
+  console.log('ST-1 empty / failure');
+  await scn('displays.empty');
+  await p.click('[data-go=displays]'); await p.waitForSelector('.dp-view');
+  ok(/No presets yet/.test(await txt('.dp-plist')), 'empty: No presets yet');
+  await shot('view-empty');
+  await scn('displays.empty');
+  await scn('displays.fail');
+  await popOpen();
+  ok(!!(await p.$('#pop .state.failure')) && !(await p.$('#pop [data-b]')), 'popover: store failure instead of data');
+  await popClose();
+  await p.click('[data-go=displays]'); await p.waitForSelector('.state.failure');
+  ok(/Couldn’t open Displays/.test(await txt('#view')), 'view: failure state');
+  await shot('view-failure');
+  await scn('displays.fail');
+  await p.click('#view [data-act]'); await p.waitForSelector('.dp-view');
+
+  console.log('G1 reload persists data + prefs; v2 ddc boolean migrates');
+  await p.evaluate(() => { OS.setPref('displays.step', 10); });
+  await setRange('.dp-pane [data-b="builtin"]', 60);
+  await p.waitForTimeout(500);
+  await p.reload(); await p.waitForTimeout(600);
+  ok((await p.evaluate(() => OS.pref('displays.step'))) === 10 && (await bri('builtin')) === 60, 'step pref and brightness survived reload');
+  ok((await p.evaluate(() => OS.data.displays.presets.length)) >= 3, 'presets survived reload');
+  await p.evaluate(() => {
+    const old = { list: [{ id: 'builtin', name: 'Built-in Retina Display', ddc: true, brightness: 0.7, main: true, res: '3024 × 1964', pos: { x: 0, y: 218, w: 1512, h: 982 } },
+      { id: 'dell', name: 'DELL U2723QE', ddc: true, brightness: 0.55, res: '3840 × 2160', pos: { x: 1512, y: 0, w: 2560, h: 1440 } },
+      { id: 'tv', name: 'LG TV (HDMI)', ddc: false, res: '1920 × 1080', pos: { x: 4072, y: 180, w: 1920, h: 1080 } }], presets: [], night: false };
+    localStorage.setItem('oneshot.v3.data.displays', JSON.stringify(old));
+  });
+  await p.reload(); await p.waitForTimeout(600);
+  const mig = await p.evaluate(() => OS.data.displays.list.map((x) => [x.id, x.backend, x.controls.length, 'ddc' in x, !!x.reason]));
+  ok(JSON.stringify(mig) === JSON.stringify([['builtin', 'native', 1, false, true], ['dell', 'ddc', 1, false, true], ['tv', 'unsupported', 0, false, true]]), 'v2 data migrates to backend/controls: ' + JSON.stringify(mig));
+  await popOpen();
+  ok(!!(await p.$('#pop [data-unsup="tv"] .state.unsupported')), 'migrated TV still shows the placeholder');
+
+  ok(errs.length === 0, 'no console errors' + (errs.length ? ': ' + errs.join(' | ') : ''));
+  await b.close();
+  console.log('displays: all passed');
+})().catch((e) => { console.error(e.message); process.exit(1); });

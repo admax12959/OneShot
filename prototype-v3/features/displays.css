@@ -1,0 +1,64 @@
+/* Displays. Popover is menu-dense; the view is a toolbar, an arrangement and a preset list. */
+.dp-pop{width:300px}
+.dp-row{padding:3px 0 5px}
+.dp-h{display:flex;align-items:center;gap:7px;margin-bottom:1px}
+.dp-h span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dp-h .mono{width:40px;text-align:right;color:var(--label2);flex:none}
+.dp-sub{font-size:11px;color:var(--label2);margin:-2px 0 4px}
+.dp-row input[type=range]{width:100%;margin:2px 0}
+.dp-lrow{padding:2px 0 4px}
+.dp-cap{font-size:11px;line-height:1.35;color:var(--label2)}
+.dp-be{display:inline-block;margin-right:6px;padding:0 5px;border-radius:3px;background:var(--fill);font-size:10px;font-weight:600;letter-spacing:.2px;text-transform:uppercase;color:rgba(0,0,0,.5);vertical-align:1px}
+.dp-be.unsupported{background:transparent;box-shadow:inset 0 0 0 .5px rgba(0,0,0,.25)}
+.dp-chk{display:flex;align-items:center;gap:6px;font-size:11.5px;color:var(--label2);height:20px}
+.dp-chk .ic{animation:spin 1s linear infinite}
+.dp-fail{display:flex;align-items:center;gap:8px;margin-top:3px;font-size:11.5px;color:var(--orange)}
+.dp-fail span{flex:1;min-width:0}
+.dp-row .state.compact{margin:2px 0 0;padding:8px 10px;gap:3px}
+.dp-row .state.compact .tile{width:24px;height:24px;border-radius:6px;margin-bottom:0}
+.dp-row .state.compact .ic{width:14px;height:14px}
+.dp-row .state.compact h3{font-size:12px}
+.dp-row .state.compact p{font-size:11px}
+.dp-row .state.compact .foot{display:none}
+.dp-night{display:flex;align-items:center;gap:10px;padding:7px 0;border-top:1px solid var(--sep2);margin-top:4px}
+.dp-night > div{flex:1}
+.dp-night b{font-weight:500}
+.dp-night .muted{font-size:11.5px}
+.dp-chips{display:flex;gap:6px;flex-wrap:wrap;padding:6px 0 2px;border-top:1px solid var(--sep2)}
+.dp-chip{height:22px;padding:0 10px;border-radius:11px;border:0;background:#fff;cursor:default;box-shadow:0 0 0 .5px rgba(0,0,0,.2)}
+.dp-chip:hover{background:#f3f3f6}
+.dp-chip.on{background:#e8f1ff;box-shadow:0 0 0 1px var(--accent);color:#0060c8}
+.dp-pop .pop-f{flex-direction:column}
+.dp-view{flex:1;min-height:0;display:flex}
+.dp-col{flex:1;min-width:0;display:flex;flex-direction:column}
+.dp-save .field{width:200px}
+.dp-save .grow{flex:1}
+.dp-main{flex:1;min-height:0;overflow:auto;padding:6px 22px 20px}
+.dp-main .sec-h{padding-left:0}
+.dp-arr{display:flex;overflow:hidden;align-items:center;gap:14px;border-radius:8px;background:var(--bg2);padding:14px;min-height:196px}
+.dp-canvas{position:relative;flex:none}
+.dp-rect{position:absolute;border:0;border-radius:4px;background:#fff;padding:5px 7px;text-align:left;overflow:hidden;cursor:default;display:flex;flex-direction:column;gap:1px;font-size:10.5px;line-height:1.25;box-shadow:0 0 0 1px rgba(0,0,0,.18)}
+.dp-rect:hover{box-shadow:0 0 0 1px rgba(10,124,255,.5)}
+.dp-rect.sel{box-shadow:0 0 0 2px var(--accent)}
+.dp-rect b{font-weight:600;font-size:11px}
+.dp-rect.nodc{background:#ececef}
+.dp-rect.chk span:last-child{color:var(--accent)}
+.dp-arr .state{margin:0;flex:1}
+.dp-plist{border-radius:8px;box-shadow:0 0 0 .5px rgba(0,0,0,.12);min-height:60px;display:flex;flex-direction:column;padding:3px 0}
+.dp-plist .state{margin:14px auto}
+.dp-prow{cursor:default;outline:0}
+.dp-prow:focus-visible{box-shadow:0 0 0 2px rgba(10,124,255,.45)}
+.dp-prow .t{flex:none;display:flex;align-items:center;gap:8px}
+.dp-prow .m{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;text-align:right}
+.dp-prow .btn{color:var(--label)}
+.dp-applied{font-size:11px}
+.dp-nightrow{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--sep2);border-bottom:1px solid var(--sep2);margin:10px 0 4px}
+.dp-nightrow > div{flex:1}
+.dp-nightrow b{font-weight:500}
+.dp-pane-h{font-size:12px;margin:2px 0 6px;color:rgba(0,0,0,.7);font-weight:600}
+.dp-pane .dp-row input[type=range]{width:100%}
+.dp-kv{margin:8px 0 0;grid-template-columns:70px 1fr;font-size:12px}
+.dp-pop .dp-row .state.compact{align-items:flex-start;text-align:left;padding:1px 0 3px 20px;margin:0}
+.dp-pop .dp-row .state.compact .tile{display:none}
+.dp-pop .dp-row .state.compact h3{font-weight:500;color:var(--label2)}
+.dp-rect span,.dp-rect b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
